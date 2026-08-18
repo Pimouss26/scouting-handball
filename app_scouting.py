@@ -105,7 +105,7 @@ st.subheader(f"🏆 Top {top_n} — {tri_choisi}")
 cols_visibles = ["Nom_Joueuse", "Pays", "Type_Poste", "Matchs_Joues", "Buts", "Buts_PM", "Passes_D", "Implication", "Tirs_Bloques", "Sanctions_2min"] if poste_filter != "GARDIENNE" else ["Nom_Joueuse", "Pays", "Matchs_Joues", "Arrets", "Arrets_PM", "Pct_Arrets", "Passes_D", "Sanctions_2min"]
 st.dataframe(df_top[cols_visibles].head(top_n), use_container_width=True)
 
-# --- GÉNÉRATEUR PDF À LA VOLÉE ---
+# --- GÉNÉRATEUR PDF AVEC ÉTIQUETTES ET LÉGENDE ---
 class ScoutingPDF(FPDF):
     def draw_kpi_card(self, x, y, w, h, title, value, subtext=""):
         self.set_fill_color(21, 28, 44)
@@ -133,7 +133,6 @@ def build_pdf_in_memory(row_player, raw_matches_df):
     is_gk = (poste == "GARDIENNE")
     nb_matchs = int(row_player["Matchs_Joues"])
 
-    # Moyennes
     avg_df = df[(df["Competition"] == row_player["Competition"]) & (df["Type_Poste"] == row_player["Type_Poste"])]
     if not is_gk:
         categories = ['Assists', 'Buts', 'Sanctions (2m)', 'Tirs Bloques', 'Implication']
@@ -145,28 +144,49 @@ def build_pdf_in_memory(row_player, raw_matches_df):
         raw_a = [avg_df['Passes_D'].mean(), avg_df['Arrets'].mean(), avg_df['Sanctions_2min'].mean(), avg_df['Pct_Arrets'].mean()]
 
     max_v = max(max(raw_p), max(raw_a), 1)
-    vp = [(v / max_v) * 60 + 18 for v in raw_p] + [(raw_p[0] / max_v) * 60 + 18]
-    va = [(v / max_v) * 60 + 18 for v in raw_a] + [(raw_a[0] / max_v) * 60 + 18]
-    angles = [n / float(len(categories)) * 2 * np.pi for n in range(len(categories))] + [0]
+    vp = [(v / max_v) * 60 + 18 for v in raw_p]
+    va = [(v / max_v) * 60 + 18 for v in raw_a]
+    angles = [n / float(len(categories)) * 2 * np.pi for n in range(len(categories))]
 
-    fig, ax = plt.subplots(figsize=(6, 6), subplot_kw=dict(polar=True), facecolor='#0b0f19')
+    vp_plot = vp + [vp[0]]
+    va_plot = va + [va[0]]
+    angles_plot = angles + [angles[0]]
+
+    fig, ax = plt.subplots(figsize=(6.0, 6.0), subplot_kw=dict(polar=True), facecolor='#0b0f19')
     ax.set_facecolor('#0b0f19')
     ax.set_theta_offset(np.pi / 2)
     ax.set_theta_direction(-1)
-    plt.xticks(angles[:-1], categories, color='#f8fafc', size=9.5, fontweight='bold')
+    plt.xticks(angles, categories, color='#f8fafc', size=9.5, fontweight='bold')
     plt.yticks([], [])
     plt.ylim(0, 115)
     ax.grid(color='#1e293b', linestyle='--', linewidth=0.8)
     ax.spines['polar'].set_color('#1e293b')
 
-    ax.plot(angles, va, linewidth=1.8, linestyle='--', color='#94a3b8')
-    ax.fill(angles, va, color='#94a3b8', alpha=0.10)
-    ax.plot(angles, vp, linewidth=2.5, color='#22c55e')
-    ax.fill(angles, vp, color='#22c55e', alpha=0.25)
+    # Tracés
+    ax.plot(angles_plot, va_plot, linewidth=1.8, linestyle='--', color='#94a3b8', label=f"Moy. {comp}")
+    ax.fill(angles_plot, va_plot, color='#94a3b8', alpha=0.10)
+    ax.scatter(angles, va, color='#94a3b8', s=25, zorder=8)
+
+    ax.plot(angles_plot, vp_plot, linewidth=2.5, color='#22c55e', label=player)
+    ax.fill(angles_plot, vp_plot, color='#22c55e', alpha=0.25)
+    ax.scatter(angles, vp, color='#22c55e', s=45, zorder=10)
+
+    # Étiquettes de valeurs (badges)
+    for ang, r_player, r_avg, p_pos, a_pos in zip(angles, raw_p, raw_a, vp, va):
+        txt_player = f"{int(r_player)}" if isinstance(r_player, (int, np.integer)) or (isinstance(r_player, float) and r_player.is_integer()) else f"{r_player:.1f}"
+        txt_avg = f"{r_avg:.1f}"
+
+        bbox_p = dict(boxstyle='round,pad=0.2', facecolor='#0b0f19', edgecolor='#22c55e', alpha=0.85, linewidth=0.6)
+        bbox_a = dict(boxstyle='round,pad=0.2', facecolor='#0b0f19', edgecolor='#475569', alpha=0.80, linewidth=0.5)
+
+        ax.text(ang, p_pos + 9, txt_player, color='#22c55e', fontsize=8.5, fontweight='bold', ha='center', va='center', bbox=bbox_p, zorder=13)
+        ax.text(ang, max(a_pos - 9, 4), txt_avg, color='#cbd5e1', fontsize=7, ha='center', va='center', bbox=bbox_a, zorder=12)
+
+    ax.legend(loc='upper right', bbox_to_anchor=(1.28, 1.16), facecolor='#151c2c', edgecolor='#334155', labelcolor='white', prop={'size': 7.5})
 
     img_buf = io.BytesIO()
     plt.tight_layout()
-    plt.savefig(img_buf, format='png', dpi=200, bbox_inches='tight', facecolor='#0b0f19')
+    plt.savefig(img_buf, format='png', dpi=220, bbox_inches='tight', facecolor='#0b0f19')
     plt.close()
     img_buf.seek(0)
 
