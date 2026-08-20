@@ -1,5 +1,6 @@
 import io
 import os
+import re
 import unicodedata
 import matplotlib.pyplot as plt
 import numpy as np
@@ -39,7 +40,7 @@ def load_data():
 
     df_grouped = df_raw.groupby(["Nom_Joueuse", "Competition"], as_index=False).agg({
         "Type_Poste": "first", "Poste_Precis": "first", "Pays": "first",
-        "DOB": "first", "Age": "max", "Club": "first", "Taille": "max",
+        "Age": "max", "Club": "first", "Taille": "max",
         "Min_Jouees": ["count", "sum"], "Titulaire": "sum",
         "Buts_Sans_7m": "sum", "Buts_Totaux": "sum", "Tirs_Totaux": "sum",
         "Buts_6m": "sum", "Tirs_6m": "sum",
@@ -62,7 +63,7 @@ def load_data():
     
     df_grouped.columns = [
         "Nom_Joueuse", "Competition", "Type_Poste", "Poste_Precis", "Pays",
-        "DOB", "Age", "Club", "Taille", "Matchs_Joues", "Min_Totales", "Titularisations",
+        "Age", "Club", "Taille", "Matchs_Joues", "Min_Totales", "Titularisations",
         "Buts", "Buts_Totaux", "Tirs_Totaux",
         "Buts_6m", "Tirs_6m", "Buts_9m", "Tirs_9m",
         "Buts_Wing", "Tirs_Wing", "Buts_7m", "Tirs_7m",
@@ -77,7 +78,6 @@ def load_data():
     
     df_grouped["Tirs_Hors_7m"] = np.maximum(df_grouped["Tirs_Totaux"] - df_grouped["Tirs_7m"], df_grouped["Buts"])
 
-    # Ratios numériques
     df_grouped["Pct_Hors_7m"] = np.where(df_grouped["Tirs_Hors_7m"] > 0, (df_grouped["Buts"] / df_grouped["Tirs_Hors_7m"]) * 100, 0).round(1)
     df_grouped["Pct_Global_Tir"] = np.where(df_grouped["Tirs_Totaux"] > 0, (df_grouped["Buts_Totaux"] / df_grouped["Tirs_Totaux"]) * 100, 0).round(1)
     df_grouped["Pct_6m"] = np.where(df_grouped["Tirs_6m"] > 0, (df_grouped["Buts_6m"] / df_grouped["Tirs_6m"]) * 100, 0).round(1)
@@ -97,7 +97,6 @@ def load_data():
     df_grouped["Pct_Arr_Brk"] = np.where(df_grouped["Tirs_Brk_Subis"] > 0, (df_grouped["Arrets_Brk"] / df_grouped["Tirs_Brk_Subis"]) * 100, 0).round(1)
     df_grouped["Pct_Arr_LD"] = np.where(df_grouped["Tirs_LD_Subis"] > 0, (df_grouped["Arrets_LD"] / df_grouped["Tirs_LD_Subis"]) * 100, 0).round(1)
 
-    # Affichage textuel lisible
     def format_stat_ratio(reussis, totaux, pct):
         return [f"{int(r)}/{int(t)} ({p:.1f} %)" if t > 0 else f"{int(r)}/0 (0 %)" for r, t, p in zip(reussis, totaux, pct)]
 
@@ -227,7 +226,7 @@ else:
 st.subheader(f"🏆 Classement — {secteur_choisi if secteur_choisi != 'Tous' else tri_choisi} ({'Meilleur Ratio %' if 'Efficacité' in mode_tri else 'Plus grand nombre'})")
 st.dataframe(df_display.head(top_n), use_container_width=True)
 
-# --- COMPARATEUR MULTI-JOUEUSES ---
+# --- COMPARATEUR MULTI-JOUEUSES (LABELS SANS CHEVAUCHEMENT) ---
 st.markdown("---")
 st.subheader("⚔️ Outil de Comparaison Directe (jusqu'à 10 joueuses)")
 
@@ -250,13 +249,13 @@ if joueuses_compare:
     ang = [n / float(len(cat_comp)) * 2 * np.pi for n in range(len(cat_comp))]
     ang_p = ang + [ang[0]]
 
-    fig, ax = plt.subplots(figsize=(7.5, 7.5), subplot_kw=dict(polar=True), facecolor='#0b0f19')
+    fig, ax = plt.subplots(figsize=(8.0, 8.0), subplot_kw=dict(polar=True), facecolor='#0b0f19')
     ax.set_facecolor('#0b0f19')
     ax.set_theta_offset(np.pi / 2)
     ax.set_theta_direction(-1)
     plt.xticks(ang, cat_comp, color='#f8fafc', size=10, fontweight='bold')
     plt.yticks([], [])
-    plt.ylim(0, 115)
+    plt.ylim(0, 130)
     ax.grid(color='#1e293b', linestyle='--', linewidth=0.8)
 
     va_p = [(v / max_val) * 70 + 18 for v in val_ref] + [(val_ref[0] / max_val) * 70 + 18]
@@ -264,15 +263,28 @@ if joueuses_compare:
 
     pal = ['#22c55e', '#38bdf8', '#f59e0b', '#ec4899', '#a855f7', '#14b8a6', '#f43f5e', '#84cc16', '#eab308', '#6366f1']
     
+    # Positionnement sans chevauchement
     for i, j_nom in enumerate(joueuses_compare):
         rj = df_w[df_w["Nom_Joueuse"] == j_nom].iloc[0]
         raw_vals = [rj['Passes_D'], rj['Buts'], rj['Buts_7m'], rj['Tirs_Bloques'], rj['Implication']]
         v_plot = [(v / max_val) * 70 + 18 for v in raw_vals]
         col = pal[i % len(pal)]
-        ax.plot(ang_p, v_plot + [v_plot[0]], linewidth=2.5, color=col, label=f"{j_nom} ({rj['Pays']})")
-        ax.scatter(ang, v_plot, color=col, s=40)
+        ax.plot(ang_p, v_plot + [v_plot[0]], linewidth=2.2, color=col, label=f"{j_nom} ({rj['Pays']})")
+        ax.scatter(ang, v_plot, color=col, s=35, zorder=5)
 
-    ax.legend(loc='upper right', bbox_to_anchor=(1.40, 1.15), facecolor='#151c2c', edgecolor='#334155', labelcolor='white')
+        # Décalage angulaire et radial pour chaque joueuse
+        ang_shift = (i - (len(joueuses_compare) - 1) / 2.0) * 0.04
+        for k, (a_base, val_num, rad_pos) in enumerate(zip(ang, raw_vals, v_plot)):
+            a_pos = a_base + ang_shift
+            r_label = rad_pos + 6.0 + (i % 2) * 5.0
+            ax.text(
+                a_pos, r_label, f"{int(val_num)}",
+                color=col, fontsize=7.5, fontweight='bold', ha='center', va='center',
+                bbox=dict(boxstyle='round,pad=0.15', facecolor='#0b0f19', edgecolor=col, alpha=0.92, linewidth=0.6),
+                zorder=10
+            )
+
+    ax.legend(loc='upper right', bbox_to_anchor=(1.45, 1.15), facecolor='#151c2c', edgecolor='#334155', labelcolor='white')
     st.pyplot(fig)
 
     st.markdown("##### 🔢 Tableau Comparatif Direct des Métriques")
@@ -289,13 +301,17 @@ j_sel = st.selectbox("Sélectionner la joueuse à analyser :", df_w["Nom_Joueuse
 if j_sel:
     rf = df_w[df_w["Nom_Joueuse"] == j_sel].iloc[0]
     
-    dob_raw = str(rf.get("DOB", "")).strip()
+    # Récupération de la date de naissance exacte depuis les données brutes
+    raw_sub = df_raw[df_raw["Nom_Joueuse"] == j_sel]
+    dob_series = raw_sub["DOB"].dropna().astype(str)
+    dob_cands = [d.strip() for d in dob_series if d.strip() not in ["0", "0.0", "nan", "-", ""]]
+    dob_raw = dob_cands[0] if dob_cands else ""
+    
     age_val = int(rf['Age']) if rf['Age'] > 0 else 0
     
-    # Affichage exact et lisible de l'âge avec la date de naissance complète
-    if dob_raw not in ["0", "0.0", "nan", "-", ""] and age_val > 0:
+    if dob_raw and age_val > 0:
         age_str = f"{age_val} ans (née le {dob_raw})"
-    elif dob_raw not in ["0", "0.0", "nan", "-", ""]:
+    elif dob_raw:
         age_str = f"Née le {dob_raw}"
     elif age_val > 0:
         age_str = f"{age_val} ans"
@@ -308,11 +324,32 @@ if j_sel:
     st.markdown(f"**Poste :** `{rf['Poste_Precis']}` | **Club :** `{rf['Club']}` | **Physique & Âge :** `{taille_txt} — {age_str}`")
 
     st.markdown("#### 📅 Parcours Chronologique")
-    m_player = df_raw[df_raw["Nom_Joueuse"] == j_sel].copy()
-    
-    order_map = {"Preliminary": 1, "Main": 2, "President": 2, "Quarter": 3, "Semi": 4, "Final": 5, "Placement": 5}
-    m_player["Ordre"] = m_player["Phase"].apply(lambda x: next((v for k, v in order_map.items() if k in str(x)), 3))
-    m_player = m_player.sort_values(by="Ordre")
+    m_player = raw_sub.copy()
+
+    # Logique de tri chronologique strict
+    def score_chronologique(phase_str):
+        p = str(phase_str)
+        # Prelim 1, 2, 3
+        if "Prelim" in p or "Preliminary" in p:
+            m_r = re.search(r"(\d+)\.\s*round", p, re.I)
+            r_num = int(m_r.group(1)) if m_r else 1
+            return 10 + r_num
+        # Main Round ou Pres. Cup 1, 2
+        elif "Main Round" in p or "President" in p:
+            m_r = re.search(r"(\d+)\.\s*round", p, re.I)
+            r_num = int(m_r.group(1)) if m_r else 1
+            return 20 + r_num
+        # Matches à élimination
+        elif "Quarter" in p:
+            return 30
+        elif "Semi" in p:
+            return 40
+        elif "Final" in p or "place" in p or "Placement" in p:
+            return 50
+        return 99
+
+    m_player["Chrono_Score"] = m_player["Phase"].apply(score_chronologique)
+    m_player = m_player.sort_values(by="Chrono_Score")
 
     def formater_tour(phase_raw):
         p = str(phase_raw)
@@ -320,8 +357,11 @@ if j_sel:
         p = p.replace("President's Cup - ", "Pres. Cup ")
         p = p.replace("President Cup - ", "Pres. Cup ")
         p = p.replace("Quarter-final", "1/4 Finale")
+        p = p.replace("Quarterfinals", "1/4 Finale")
         p = p.replace("Semi-final", "1/2 Finale")
-        p = p.replace("Final Round", "Phases Finales")
+        p = p.replace("Semifinals", "1/2 Finale")
+        p = p.replace("Final Round, ", "")
+        p = p.replace("Final Round - ", "")
         return p.strip()
 
     cols_m = st.columns(max(len(m_player), 1))
