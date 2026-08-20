@@ -18,7 +18,7 @@ def load_data():
     
     df_grouped = df_raw.groupby(["Nom_Joueuse", "Competition"], as_index=False).agg({
         "Type_Poste": "first", "Poste_Precis": "first", "Pays": "first",
-        "Age": "max", "Club": "first", "Taille": "max",
+        "DOB": "first", "Age": "max", "Club": "first", "Taille": "max",
         "Min_Jouees": ["count", "sum"], "Titulaire": "sum",
         "Buts_Sans_7m": "sum", "Buts_Totaux": "sum", "Tirs_Totaux": "sum",
         "Buts_6m": "sum", "Tirs_6m": "sum",
@@ -41,7 +41,7 @@ def load_data():
     
     df_grouped.columns = [
         "Nom_Joueuse", "Competition", "Type_Poste", "Poste_Precis", "Pays",
-        "Age", "Club", "Taille", "Matchs_Joues", "Min_Totales", "Titularisations",
+        "DOB", "Age", "Club", "Taille", "Matchs_Joues", "Min_Totales", "Titularisations",
         "Buts", "Buts_Totaux", "Tirs_Totaux",
         "Buts_6m", "Tirs_6m", "Buts_9m", "Tirs_9m",
         "Buts_Wing", "Tirs_Wing", "Buts_7m", "Tirs_7m",
@@ -54,12 +54,14 @@ def load_data():
         "Arrets_LD", "Tirs_LD_Subis"
     ]
     
-    # Calculs de ratios et colonnes formatées
+    df_grouped["Tirs_Hors_7m"] = np.maximum(df_grouped["Tirs_Totaux"] - df_grouped["Tirs_7m"], df_grouped["Buts"])
+
     def format_stat_ratio(reussis, totaux):
         pct = np.where(totaux > 0, (reussis / totaux) * 100, 0).round(1)
         return [f"{int(r)}/{int(t)} ({p:.1f} %)" if t > 0 else "0/0 (0 %)" for r, t, p in zip(reussis, totaux, pct)]
 
-    # Formats Champ
+    # Formats ratios Champ
+    df_grouped["Stat_Buts_Hors_7m"] = format_stat_ratio(df_grouped["Buts"], df_grouped["Tirs_Hors_7m"])
     df_grouped["Stat_Global_Tir"] = format_stat_ratio(df_grouped["Buts_Totaux"], df_grouped["Tirs_Totaux"])
     df_grouped["Stat_6m"] = format_stat_ratio(df_grouped["Buts_6m"], df_grouped["Tirs_6m"])
     df_grouped["Stat_9m"] = format_stat_ratio(df_grouped["Buts_9m"], df_grouped["Tirs_9m"])
@@ -69,7 +71,7 @@ def load_data():
     df_grouped["Stat_Brk"] = format_stat_ratio(df_grouped["Buts_Brk"], df_grouped["Tirs_Brk"])
     df_grouped["Stat_LD"] = format_stat_ratio(df_grouped["Buts_LD"], df_grouped["Tirs_LD"])
 
-    # Formats Gardiennes
+    # Formats ratios Gardiennes
     df_grouped["Stat_Global_Arrets"] = format_stat_ratio(df_grouped["Arrets_Totaux"], df_grouped["Tirs_Subis"])
     df_grouped["Stat_Arr_6m"] = format_stat_ratio(df_grouped["Arrets_6m"], df_grouped["Tirs_6m_Subis"])
     df_grouped["Stat_Arr_9m"] = format_stat_ratio(df_grouped["Arrets_9m"], df_grouped["Tirs_9m_Subis"])
@@ -104,7 +106,6 @@ postes_uniques = sorted([p for p in df["Poste_Precis"].unique() if p not in ["No
 selected_postes = st.sidebar.multiselect("Poste(s) précis", postes_uniques, default=[])
 min_matchs = st.sidebar.slider("Matchs joués min.", 1, int(df["Matchs_Joues"].max()) if not df.empty else 8, 3)
 
-# Filtrage
 df_w = df.copy()
 if poule_filter != "Toutes":
     tag = "Poule Haute" if "Haute" in poule_filter else "Poule Basse"
@@ -137,7 +138,7 @@ if type_poste_sel == "GARDIENNE":
     }
 else:
     secteur_choisi = st.sidebar.selectbox("🎯 Secteur de tir prioritaire", ["Tous", "Secteur 6m", "Secteur 9m", "Secteur Wing (Ailes)", "Secteur 7m", "Contre-attaque (FB)", "Percée (Brk)", "Buts Cage Vide (LD)"])
-    criteres = {"Buts (Hors 7m)": "Buts", "Buts par Match": "Buts_PM", "Implication Totale": "Implication", "Buts sur 7m": "Buts_7m", "Assists": "Passes_D", "Titularisations (S)": "Titularisations"}
+    criteres = {"Buts (Hors 7m)": "Buts", "Buts par Match": "Buts_PM", "Implication Totale": "Implication", "Buts sur 7m": "Buts_7m", "Assists": "Passes_D"}
     
     mapping_secteurs = {
         "Secteur 6m": ("Buts_6m", "Stat_6m", "Buts 6m (Ratio %)"),
@@ -151,7 +152,6 @@ else:
 
 tri_choisi = st.sidebar.selectbox("Classer par", list(criteres.keys()))
 
-# Gestion de la colonne de tri et affichage dynamique
 if secteur_choisi != "Tous":
     col_tri_val, col_stat_txt, nom_col_affiche = mapping_secteurs[secteur_choisi]
     df_top = df_w.sort_values(by=col_tri_val, ascending=False).reset_index(drop=True)
@@ -162,7 +162,6 @@ else:
 top_n = st.sidebar.slider("Afficher le Top :", 5, 50, 15)
 df_top.index += 1
 
-# Construction dynamique des colonnes affichées dans le tableau
 if type_poste_sel == "GARDIENNE":
     if secteur_choisi != "Tous":
         cols_tableau = ["Nom_Joueuse", "Pays", "Poste_Precis", "Matchs_Joues", col_stat_txt, "Stat_Global_Arrets", "Passes_D", "Sanctions_2m"]
@@ -172,20 +171,20 @@ if type_poste_sel == "GARDIENNE":
         df_display = df_top[cols_tableau].rename(columns={"Stat_Global_Arrets": "Arrêts Totaux (Ratio %)", "Stat_Arr_7m": "Arrêts 7m (Ratio %)"})
 else:
     if secteur_choisi != "Tous":
-        cols_tableau = ["Nom_Joueuse", "Pays", "Poste_Precis", "Matchs_Joues", col_stat_txt, "Stat_Global_Tir", "Passes_D", "Implication", "Sanctions_2m"]
-        df_display = df_top[cols_tableau].rename(columns={col_stat_txt: nom_col_affiche, "Stat_Global_Tir": "Tirs Totaux (Ratio %)"})
+        cols_tableau = ["Nom_Joueuse", "Pays", "Poste_Precis", "Matchs_Joues", col_stat_txt, "Stat_Buts_Hors_7m", "Stat_Global_Tir", "Passes_D", "Implication", "Sanctions_2m"]
+        df_display = df_top[cols_tableau].rename(columns={col_stat_txt: nom_col_affiche, "Stat_Buts_Hors_7m": "Buts hors 7m (Ratio %)", "Stat_Global_Tir": "Tirs Totaux (Ratio %)"})
     else:
-        cols_tableau = ["Nom_Joueuse", "Pays", "Poste_Precis", "Matchs_Joues", "Buts", "Stat_7m", "Stat_Global_Tir", "Passes_D", "Implication", "Sanctions_2m"]
-        df_display = df_top[cols_tableau].rename(columns={"Buts": "Buts (hors 7m)", "Stat_7m": "7m (Ratio %)", "Stat_Global_Tir": "Tirs Totaux (Ratio %)"})
+        cols_tableau = ["Nom_Joueuse", "Pays", "Poste_Precis", "Matchs_Joues", "Stat_Buts_Hors_7m", "Stat_7m", "Stat_Global_Tir", "Passes_D", "Implication", "Sanctions_2m"]
+        df_display = df_top[cols_tableau].rename(columns={"Stat_Buts_Hors_7m": "Buts hors 7m (Ratio %)", "Stat_7m": "7m (Ratio %)", "Stat_Global_Tir": "Tirs Totaux (Ratio %)"})
 
 st.subheader(f"🏆 Classement — {secteur_choisi if secteur_choisi != 'Tous' else tri_choisi}")
 st.dataframe(df_display.head(top_n), use_container_width=True)
 
-# --- COMPARATEUR MULTI-JOUEUSES ---
+# --- COMPARATEUR MULTI-JOUEUSES (CLARTÉ OPTIMISÉE) ---
 st.markdown("---")
 st.subheader("⚔️ Outil de Comparaison Directe (jusqu'à 10 joueuses)")
 
-rech_txt = st.text_input("🔍 Rechercher une joueuse pour l'ajouter à la comparaison :", "")
+rech_txt = st.text_input("🔍 Rechercher une joueuse :", "")
 options_j = df_w[df_w["Nom_Joueuse"].str.contains(rech_txt, case=False, na=False)]["Nom_Joueuse"].tolist() if rech_txt else df_w["Nom_Joueuse"].tolist()
 
 joueuses_compare = st.multiselect("Joueuses sélectionnées :", options_j, default=options_j[:2] if len(options_j) >= 2 and not rech_txt else [], max_selections=10)
@@ -224,30 +223,34 @@ if joueuses_compare:
         col = pal[i % len(pal)]
         ax.plot(ang_p, v_plot + [v_plot[0]], linewidth=2.2, color=col, label=f"{j_nom} ({rj['Pays']})")
         ax.scatter(ang, v_plot, color=col, s=35)
+        
+        # Décalage progressif des étiquettes avec boîte de lisibilité
+        offset_rad = 5 + (i * 3.5)
         for a_pos, val_num, rad_pos in zip(ang, raw_vals, v_plot):
-            ax.text(a_pos, rad_pos + 6, f"{int(val_num)}", color=col, fontsize=8, fontweight='bold', ha='center', va='center')
+            ax.text(a_pos, rad_pos + offset_rad, f"{int(val_num)}", color=col, fontsize=8, fontweight='bold', ha='center', va='center',
+                    bbox=dict(boxstyle='round,pad=0.15', facecolor='#0b0f19', edgecolor=col, alpha=0.9, linewidth=0.5))
 
     ax.legend(loc='upper right', bbox_to_anchor=(1.35, 1.15), facecolor='#151c2c', edgecolor='#334155', labelcolor='white')
     st.pyplot(fig)
 
-# --- FICHE JOUEUSE INTÉGRÉE & ANALYSE GRAPHIQUE ---
+# --- FICHE JOUEUSE LISIBLE ET COMPACTE ---
 st.markdown("---")
-st.subheader("📋 Fiche Joueuse Complète & Parcours")
+st.subheader("📋 Fiche Joueuse Complète")
 
-j_sel = st.selectbox("Choisir une joueuse :", df_w["Nom_Joueuse"].tolist())
+j_sel = st.selectbox("Sélectionner la joueuse à analyser :", df_w["Nom_Joueuse"].tolist())
 
 if j_sel:
     rf = df_w[df_w["Nom_Joueuse"] == j_sel].iloc[0]
     
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Poste Officiel", rf["Poste_Precis"] if rf["Poste_Precis"] != "Non renseigné" else "Non renseigné")
-    c2.metric("Club", rf["Club"] if rf["Club"] != "Non renseigné" else "Non renseigné")
-    taille_txt = f"{int(rf['Taille'])} cm" if rf['Taille'] > 0 else "N/A"
-    age_txt = f"{int(rf['Age'])} ans" if rf['Age'] > 0 else "N/A"
-    c3.metric("Taille & Âge", f"{taille_txt} | {age_txt}")
-    c4.metric("Titularisations (S)", f"{int(rf['Titularisations'])} / {int(rf['Matchs_Joues'])}")
+    # Infos personnelles compactes
+    dob_val = str(rf["DOB"]) if str(rf["DOB"]) not in ["0", "0.0", "nan"] else ""
+    dob_txt = f"née le {dob_val}" if dob_val else (f"({int(rf['Age'])} ans)" if rf['Age'] > 0 else "")
+    taille_txt = f"{int(rf['Taille'])} cm" if rf['Taille'] > 0 else "Taille N/A"
+    
+    st.markdown(f"### **{j_sel}** — {rf['Pays']}")
+    st.markdown(f"**Poste :** `{rf['Poste_Precis']}` | **Club :** `{rf['Club']}` | **Physique / Âge :** `{taille_txt} — {dob_txt}`")
 
-    st.markdown("#### 📅 Parcours Chronologique du Tournoi")
+    st.markdown("#### 📅 Parcours Chronologique")
     m_player = df_raw[df_raw["Nom_Joueuse"] == j_sel].copy()
     
     order_map = {"Preliminary": 1, "Main": 2, "President": 2, "Quarter": 3, "Semi": 4, "Final": 5, "Placement": 5}
@@ -263,7 +266,7 @@ if j_sel:
             st.write(badge)
             st.caption(f"{r_m['Buts_Totaux']} buts | {r_m['Min_Jouees']} min")
 
-    st.markdown("#### 📊 Analyse Graphique & Indicateurs Clés")
+    st.markdown("#### 📊 Analyse Graphique & Indicateurs")
     
     cat_ind = ['Assists', 'Buts', 'Sanctions (2m)', 'Tirs Bloqués', 'Implication']
     avg_ind = [df_w['Passes_D'].mean(), df_w['Buts'].mean(), df_w['Sanctions_2m'].mean(), df_w['Tirs_Bloques'].mean(), df_w['Implication'].mean()]
@@ -274,16 +277,16 @@ if j_sel:
     va_i = [(v / m_ind) * 60 + 18 for v in avg_ind]
     ang_i = [n / float(len(cat_ind)) * 2 * np.pi for n in range(len(cat_ind))]
 
-    fig_ind, ax_i = plt.subplots(figsize=(6, 6), subplot_kw=dict(polar=True), facecolor='#0b0f19')
+    fig_ind, ax_i = plt.subplots(figsize=(5.5, 5.5), subplot_kw=dict(polar=True), facecolor='#0b0f19')
     ax_i.set_facecolor('#0b0f19')
     ax_i.set_theta_offset(np.pi / 2)
     ax_i.set_theta_direction(-1)
-    plt.xticks(ang_i, cat_ind, color='#f8fafc', size=9.5, fontweight='bold')
+    plt.xticks(ang_i, cat_ind, color='#f8fafc', size=9, fontweight='bold')
     plt.yticks([], [])
     plt.ylim(0, 115)
     ax_i.grid(color='#1e293b', linestyle='--', linewidth=0.8)
 
-    ax_i.plot(ang_i + [ang_i[0]], va_i + [va_i[0]], linewidth=1.8, linestyle='--', color='#94a3b8', label=f"Moyenne ({rf['Competition']})")
+    ax_i.plot(ang_i + [ang_i[0]], va_i + [va_i[0]], linewidth=1.8, linestyle='--', color='#94a3b8', label=f"Moyenne")
     ax_i.fill(ang_i + [ang_i[0]], va_i + [va_i[0]], color='#94a3b8', alpha=0.10)
     ax_i.scatter(ang_i, va_i, color='#94a3b8', s=25)
 
@@ -303,7 +306,7 @@ if j_sel:
     with col_k:
         st.markdown(f"### 📌 KPIs — {j_sel}")
         k1, k2 = st.columns(2)
-        k1.metric("Buts (Hors 7m)", f"{int(rf['Buts'])}", f"{rf['Buts_PM']} / match")
+        k1.metric("Buts (Hors 7m)", rf["Stat_Buts_Hors_7m"], f"{rf['Buts_PM']} / match")
         k2.metric("Secteur 7m", rf["Stat_7m"])
         
         k3, k4 = st.columns(2)
