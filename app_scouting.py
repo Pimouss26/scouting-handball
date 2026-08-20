@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
-st.set_page_config(page_title="Plateforme Scouting Handball U18", page_icon="🤾‍♀️", layout="wide")
+st.set_page_config(page_title="Scouting Handball U18", page_icon="🤾‍♀️", layout="wide")
 
 EXCEL_FILE = "data_handball.xlsx"
 
@@ -25,134 +25,158 @@ def load_data():
     
     df_grouped = df_raw.groupby(["Nom_Joueuse", "Competition"], as_index=False).agg({
         "Type_Poste": "first",
+        "Poste_Precis": "first",
         "Pays": "first",
+        "Age": "max",
+        "Club": "first",
+        "Taille": "max",
         "Min_Jouees": ["count", "sum"],
-        "Buts": "sum",
+        "Titulaire": "sum",
+        "Buts_Sans_7m": "sum",
+        "Buts_7m": "sum",
+        "Tirs_7m": "sum",
+        "Buts_Totaux": "sum",
+        "Buts_6m": "sum",
+        "Buts_9m": "sum",
+        "Buts_Wing": "sum",
+        "Buts_FB": "sum",
+        "Buts_Brk": "sum",
+        "Buts_LD": "sum",
         "Passes_D": "sum",
         "Tirs_Bloques": "sum",
         "Sanctions_2min": "sum",
-        "Arrets": "sum",
-        "Tirs_Subis": "sum"
+        "Cartons_Rouges": "sum",
+        "Arrets_Totaux": "sum",
+        "Tirs_Subis": "sum",
+        "Arrets_7m": "sum",
+        "Tirs_7m_Subis": "sum",
+        "Arrets_6m": "sum",
+        "Arrets_9m": "sum",
+        "Arrets_Wing": "sum",
+        "Arrets_FB": "sum",
+        "Arrets_Brk": "sum",
+        "Arrets_LD": "sum"
     })
     
     df_grouped.columns = [
-        "Nom_Joueuse", "Competition", "Type_Poste", "Pays",
-        "Matchs_Joues", "Min_Totales", "Buts", "Passes_D",
-        "Tirs_Bloques", "Sanctions_2min", "Arrets", "Tirs_Subis"
+        "Nom_Joueuse", "Competition", "Type_Poste", "Poste_Precis", "Pays",
+        "Age", "Club", "Taille", "Matchs_Joues", "Min_Totales", "Titularisations",
+        "Buts", "Buts_7m", "Tirs_7m", "Buts_Totaux",
+        "Buts_6m", "Buts_9m", "Buts_Wing", "Buts_FB", "Buts_Brk", "Buts_LD",
+        "Passes_D", "Tirs_Bloques", "Sanctions_2m", "Cartons_Rouges",
+        "Arrets_Totaux", "Tirs_Subis", "Arrets_7m", "Tirs_7m_Subis",
+        "Arrets_6m", "Arrets_9m", "Arrets_Wing", "Arrets_FB", "Arrets_Brk", "Arrets_LD"
     ]
     
-    df_grouped["Implication"] = df_grouped["Buts"] + df_grouped["Passes_D"]
-    df_grouped["Pct_Arrets"] = np.where(df_grouped["Tirs_Subis"] > 0, (df_grouped["Arrets"] / df_grouped["Tirs_Subis"]) * 100, 0)
+    df_grouped["Implication"] = df_grouped["Buts"] + df_grouped["Buts_7m"] + df_grouped["Passes_D"]
+    df_grouped["Pct_Arrets"] = np.where(df_grouped["Tirs_Subis"] > 0, (df_grouped["Arrets_Totaux"] / df_grouped["Tirs_Subis"]) * 100, 0).round(1)
+    df_grouped["Pct_7m"] = np.where(df_grouped["Tirs_7m"] > 0, (df_grouped["Buts_7m"] / df_grouped["Tirs_7m"]) * 100, 0).round(1)
     df_grouped["Buts_PM"] = (df_grouped["Buts"] / df_grouped["Matchs_Joues"]).round(1)
     df_grouped["PassesD_PM"] = (df_grouped["Passes_D"] / df_grouped["Matchs_Joues"]).round(1)
     df_grouped["Impl_PM"] = (df_grouped["Implication"] / df_grouped["Matchs_Joues"]).round(1)
-    df_grouped["Arrets_PM"] = (df_grouped["Arrets"] / df_grouped["Matchs_Joues"]).round(1)
-    df_grouped["Bloques_PM"] = (df_grouped["Tirs_Bloques"] / df_grouped["Matchs_Joues"]).round(1)
-    df_grouped["Sanctions_PM"] = (df_grouped["Sanctions_2min"] / df_grouped["Matchs_Joues"]).round(1)
+    df_grouped["Arrets_PM"] = (df_grouped["Arrets_Totaux"] / df_grouped["Matchs_Joues"]).round(1)
 
     return df_raw, df_grouped
 
 df_raw, df = load_data()
 
 st.title("🤾‍♀️ Hub de Détection & Scouting Handball U18")
-st.markdown("Filtrez les meilleures joueuses selon vos critères statistiques et générez directement leur fiche complète.")
 
-if df.empty:
-    st.warning("Fichier de données introuvable.")
-    st.stop()
-
-# --- FILTRES ---
+# --- FILTRES LATÉRAUX ---
 st.sidebar.header("🎯 Filtres de Recherche")
-poste_filter = st.sidebar.selectbox("Poste", ["Tous", "CHAMP", "GARDIENNE"])
-liste_pays = ["Tous"] + sorted([p for p in df["Pays"].unique() if str(p) not in ["0", "Inconnu", "0.0"]])
-pays_filter = st.sidebar.selectbox("Pays / Sélection", liste_pays)
-min_matchs = st.sidebar.slider("Nombre minimum de matchs joués", 1, int(df["Matchs_Joues"].max()), 3)
 
-df_filtered = df[df["Matchs_Joues"] >= min_matchs]
-if poste_filter != "Tous":
-    df_filtered = df_filtered[df_filtered["Type_Poste"] == poste_filter]
-if pays_filter != "Tous":
-    df_filtered = df_filtered[df_filtered["Pays"] == pays_filter]
+# 1. Multi-sélection Pays
+all_pays = sorted([p for p in df["Pays"].unique() if str(p) not in ["0", "Inconnu", "0.0"]])
+selected_pays = st.sidebar.multiselect("Pays / Sélections", all_pays, default=[])
 
-# --- TRI ---
+# 2. Poule Haute / Poule Basse
+poule_filter = st.sidebar.selectbox("Tableau de compétition", ["Toutes", "Poule Haute (Main Round / Finales)", "Poule Basse (President's Cup)"])
+
+# 3. Postes
+type_poste_sel = st.sidebar.selectbox("Catégorie de Poste", ["Tous", "CHAMP", "GARDIENNE"])
+postes_dispos = sorted([p for p in df["Poste_Precis"].unique() if p != "Non renseigné"])
+selected_postes = st.sidebar.multiselect("Poste(s) précis", postes_dispos, default=[])
+
+# 4. Matchs min
+min_matchs = st.sidebar.slider("Matchs joués min.", 1, int(df["Matchs_Joues"].max()) if not df.empty else 8, 3)
+
+# Filtrage du dataset brut si filtre de poule
+df_working = df.copy()
+if poule_filter != "Toutes":
+    tag = "Poule Haute" if "Haute" in poule_filter else "Poule Basse"
+    joueuses_poule = df_raw[df_raw["Poule_Niveau"] == tag]["Nom_Joueuse"].unique()
+    df_working = df_working[df_working["Nom_Joueuse"].isin(joueuses_poule)]
+
+if selected_pays:
+    df_working = df_working[df_working["Pays"].isin(selected_pays)]
+if type_poste_sel != "Tous":
+    df_working = df_working[df_working["Type_Poste"] == type_poste_sel]
+if selected_postes:
+    df_working = df_working[df_working["Poste_Precis"].isin(selected_postes)]
+df_working = df_working[df_working["Matchs_Joues"] >= min_matchs]
+
+# --- CRITÈRES DE CLASSEMENT AVEC SECTEURS ---
 st.sidebar.header("📊 Critère de Classement")
-if poste_filter == "GARDIENNE":
+if type_poste_sel == "GARDIENNE":
     criteres = {
-        "% d'Arrêts": "Pct_Arrets",
-        "Arrêts Totaux": "Arrets",
-        "Arrêts par Match": "Arrets_PM",
-        "Passes D / Relances": "Passes_D"
+        "% d'Arrêts": "Pct_Arrets", "Arrêts Totaux": "Arrets_Totaux", "Arrêts par Match": "Arrets_PM",
+        "Arrêts 7m": "Arrets_7m", "Arrêts 6m": "Arrets_6m", "Arrêts 9m": "Arrets_9m",
+        "Arrêts Ailes (Wing)": "Arrets_Wing", "Arrêts Contre-attaque (FB)": "Arrets_FB",
+        "Arrêts Percée (Brk)": "Arrets_Brk", "Relances (Passes D)": "Passes_D"
     }
 else:
     criteres = {
-        "Meilleures Buteuses (Total)": "Buts",
-        "Buts par Match": "Buts_PM",
-        "Implication Totale (Buts + Passes D)": "Implication",
-        "Assists / Passes Décisives": "Passes_D",
-        "Tirs Bloqués (Contres)": "Tirs_Bloques",
-        "Discipline (Moins de 2min)": "Sanctions_2min"
+        "Buts (Hors 7m)": "Buts", "Buts par Match": "Buts_PM", "Implication (Buts+7m+Assists)": "Implication",
+        "Buts 7m": "Buts_7m", "Assists / Passes D": "Passes_D", "Secteur 6m": "Buts_6m",
+        "Secteur 9m": "Buts_9m", "Secteur Ailes (Wing)": "Buts_Wing", "Contre-attaque (FB)": "Buts_FB",
+        "Percée (Brk)": "Buts_Brk", "Buts Cage Vide (LD)": "Buts_LD", "Tirs Bloqués": "Tirs_Bloques",
+        "Titularisations (S)": "Titularisations", "Discipline (Moins de 2m)": "Sanctions_2m"
     }
 
 tri_choisi = st.sidebar.selectbox("Classer par", list(criteres.keys()))
-colonne_tri = criteres[tri_choisi]
+col_tri = criteres[tri_choisi]
 ordre_asc = True if "Moins" in tri_choisi else False
-top_n = st.sidebar.slider("Afficher le Top :", 5, 50, 10)
+top_n = st.sidebar.slider("Afficher le Top :", 5, 50, 15)
 
-df_top = df_filtered.sort_values(by=colonne_tri, ascending=ordre_asc).reset_index(drop=True)
+df_top = df_working.sort_values(by=col_tri, ascending=ordre_asc).reset_index(drop=True)
 df_top.index += 1
 
+# Affichage tableau
 st.subheader(f"🏆 Top {top_n} — {tri_choisi}")
-cols_visibles = ["Nom_Joueuse", "Pays", "Type_Poste", "Matchs_Joues", "Buts", "Buts_PM", "Passes_D", "Implication", "Tirs_Bloques", "Sanctions_2min"] if poste_filter != "GARDIENNE" else ["Nom_Joueuse", "Pays", "Matchs_Joues", "Arrets", "Arrets_PM", "Pct_Arrets", "Passes_D", "Sanctions_2min"]
-st.dataframe(df_top[cols_visibles].head(top_n), use_container_width=True)
+cols_base = ["Nom_Joueuse", "Pays", "Poste_Precis", "Matchs_Joues", "Titularisations", "Buts", "Buts_7m", "Passes_D", "Implication", "Sanctions_2m", "Cartons_Rouges"] if type_poste_sel != "GARDIENNE" else ["Nom_Joueuse", "Pays", "Poste_Precis", "Matchs_Joues", "Titularisations", "Arrets_Totaux", "Pct_Arrets", "Arrets_7m", "Passes_D", "Sanctions_2m"]
+st.dataframe(df_top[[c for c in cols_base if c in df_top.columns]].head(top_n), use_container_width=True)
 
-# --- GÉNÉRATEUR PDF AVEC ÉTIQUETTES ET LÉGENDE ---
-class ScoutingPDF(FPDF):
-    def draw_kpi_card(self, x, y, w, h, title, value, subtext=""):
-        self.set_fill_color(21, 28, 44)
-        self.set_draw_color(30, 41, 59)
-        self.rect(x, y, w, h, style='FD')
-        self.set_xy(x, y + 1.8)
-        self.set_font("Helvetica", "B", 6.5)
-        self.set_text_color(148, 163, 184)
-        self.cell(w, 3.5, clean_txt(title).upper(), align='C')
-        self.set_xy(x, y + 5.5)
-        self.set_font("Helvetica", "B", 12)
-        self.set_text_color(34, 197, 94)
-        self.cell(w, 4.5, str(value), align='C')
-        if subtext:
-            self.set_xy(x, y + 10)
-            self.set_font("Helvetica", "", 5.5)
-            self.set_text_color(203, 213, 225)
-            self.cell(w, 3.5, clean_txt(subtext), align='C')
+# --- MODULE DE COMPARAISON MULTI-JOUEUSES (JUSQU'À 10) ---
+st.markdown("---")
+st.subheader("⚔️ Outil de Comparaison Directe (jusqu'à 10 joueuses)")
 
-def build_pdf_in_memory(row_player, raw_matches_df):
-    comp = clean_txt(row_player["Competition"])
-    player = clean_txt(row_player["Nom_Joueuse"])
-    pays = clean_txt(row_player["Pays"])
-    poste = str(row_player["Type_Poste"]).upper()
-    is_gk = (poste == "GARDIENNE")
-    nb_matchs = int(row_player["Matchs_Joues"])
+joueuses_compare = st.multiselect("Sélectionner jusqu'à 10 joueuses à superposer sur le radar :", df_working["Nom_Joueuse"].tolist(), max_selections=10)
+ref_choice = st.radio("Ligne de référence en pointillés :", ["Moyenne Générale", "Top 10", "Top 20"], horizontal=True)
 
-    avg_df = df[(df["Competition"] == row_player["Competition"]) & (df["Type_Poste"] == row_player["Type_Poste"])]
-    if not is_gk:
-        categories = ['Assists', 'Buts', 'Sanctions (2m)', 'Tirs Bloques', 'Implication']
-        raw_p = [row_player['Passes_D'], row_player['Buts'], row_player['Sanctions_2min'], row_player['Tirs_Bloques'], row_player['Implication']]
-        raw_a = [avg_df['Passes_D'].mean(), avg_df['Buts'].mean(), avg_df['Sanctions_2min'].mean(), avg_df['Tirs_Bloques'].mean(), avg_df['Implication'].mean()]
+if joueuses_compare:
+    categories = ['Assists', 'Buts (hors 7m)', '7m', 'Tirs Bloqués', 'Implication', 'Sanctions 2m']
+    
+    # Calcul de la ligne de référence choisie
+    if ref_choice == "Top 10":
+        sub_ref = df_working.sort_values(by="Buts", ascending=False).head(10)
+    elif ref_choice == "Top 20":
+        sub_ref = df_working.sort_values(by="Buts", ascending=False).head(20)
     else:
-        categories = ['Assists', 'Arrets', 'Sanctions (2m)', '% Arrets']
-        raw_p = [row_player['Passes_D'], row_player['Arrets'], row_player['Sanctions_2min'], row_player['Pct_Arrets']]
-        raw_a = [avg_df['Passes_D'].mean(), avg_df['Arrets'].mean(), avg_df['Sanctions_2min'].mean(), avg_df['Pct_Arrets'].mean()]
+        sub_ref = df_working
 
-    max_v = max(max(raw_p), max(raw_a), 1)
-    vp = [(v / max_v) * 60 + 18 for v in raw_p]
-    va = [(v / max_v) * 60 + 18 for v in raw_a]
+    val_ref = [sub_ref['Passes_D'].mean(), sub_ref['Buts'].mean(), sub_ref['Buts_7m'].mean(), sub_ref['Tirs_Bloques'].mean(), sub_ref['Implication'].mean(), sub_ref['Sanctions_2m'].mean()]
+    
+    # Échelle max
+    max_stat = max(max(val_ref), 1)
+    for j in joueuses_compare:
+        rj = df_working[df_working["Nom_Joueuse"] == j].iloc[0]
+        max_stat = max(max_stat, rj['Passes_D'], rj['Buts'], rj['Buts_7m'], rj['Tirs_Bloques'], rj['Implication'], rj['Sanctions_2m'])
+
     angles = [n / float(len(categories)) * 2 * np.pi for n in range(len(categories))]
-
-    vp_plot = vp + [vp[0]]
-    va_plot = va + [va[0]]
     angles_plot = angles + [angles[0]]
+    va_plot = [(v / max_stat) * 70 + 15 for v in val_ref] + [(val_ref[0] / max_stat) * 70 + 15]
 
-    fig, ax = plt.subplots(figsize=(6.0, 6.0), subplot_kw=dict(polar=True), facecolor='#0b0f19')
+    fig, ax = plt.subplots(figsize=(7.5, 7.5), subplot_kw=dict(polar=True), facecolor='#0b0f19')
     ax.set_facecolor('#0b0f19')
     ax.set_theta_offset(np.pi / 2)
     ax.set_theta_direction(-1)
@@ -160,132 +184,49 @@ def build_pdf_in_memory(row_player, raw_matches_df):
     plt.yticks([], [])
     plt.ylim(0, 115)
     ax.grid(color='#1e293b', linestyle='--', linewidth=0.8)
-    ax.spines['polar'].set_color('#1e293b')
 
-    # Tracés
-    ax.plot(angles_plot, va_plot, linewidth=1.8, linestyle='--', color='#94a3b8', label=f"Moy. {comp}")
-    ax.fill(angles_plot, va_plot, color='#94a3b8', alpha=0.10)
-    ax.scatter(angles, va, color='#94a3b8', s=25, zorder=8)
+    # Tracé Référence
+    ax.plot(angles_plot, va_plot, linewidth=1.8, linestyle='--', color='#94a3b8', label=f"{ref_choice}")
 
-    ax.plot(angles_plot, vp_plot, linewidth=2.5, color='#22c55e', label=player)
-    ax.fill(angles_plot, vp_plot, color='#22c55e', alpha=0.25)
-    ax.scatter(angles, vp, color='#22c55e', s=45, zorder=10)
+    # Palette 10 couleurs distinctes
+    palette = ['#22c55e', '#38bdf8', '#f59e0b', '#ec4899', '#a855f7', '#14b8a6', '#f43f5e', '#84cc16', '#eab308', '#6366f1']
+    for idx_c, j_nom in enumerate(joueuses_compare):
+        row_j = df_working[df_working["Nom_Joueuse"] == j_nom].iloc[0]
+        raw_j = [row_j['Passes_D'], row_j['Buts'], row_j['Buts_7m'], row_j['Tirs_Bloques'], row_j['Implication'], row_j['Sanctions_2m']]
+        vj_plot = [(v / max_stat) * 70 + 15 for v in raw_j] + [(raw_j[0] / max_stat) * 70 + 15]
+        col_j = palette[idx_c % len(palette)]
+        ax.plot(angles_plot, vj_plot, linewidth=2.2, color=col_j, label=f"{j_nom} ({row_j['Pays']})")
+        ax.scatter(angles, vj_plot[:-1], color=col_j, s=30)
 
-    # Étiquettes de valeurs (badges)
-    for ang, r_player, r_avg, p_pos, a_pos in zip(angles, raw_p, raw_a, vp, va):
-        txt_player = f"{int(r_player)}" if isinstance(r_player, (int, np.integer)) or (isinstance(r_player, float) and r_player.is_integer()) else f"{r_player:.1f}"
-        txt_avg = f"{r_avg:.1f}"
+    ax.legend(loc='upper right', bbox_to_anchor=(1.35, 1.15), facecolor='#151c2c', edgecolor='#334155', labelcolor='white')
+    st.pyplot(fig)
 
-        bbox_p = dict(boxstyle='round,pad=0.2', facecolor='#0b0f19', edgecolor='#22c55e', alpha=0.85, linewidth=0.6)
-        bbox_a = dict(boxstyle='round,pad=0.2', facecolor='#0b0f19', edgecolor='#475569', alpha=0.80, linewidth=0.5)
-
-        ax.text(ang, p_pos + 9, txt_player, color='#22c55e', fontsize=8.5, fontweight='bold', ha='center', va='center', bbox=bbox_p, zorder=13)
-        ax.text(ang, max(a_pos - 9, 4), txt_avg, color='#cbd5e1', fontsize=7, ha='center', va='center', bbox=bbox_a, zorder=12)
-
-    ax.legend(loc='upper right', bbox_to_anchor=(1.28, 1.16), facecolor='#151c2c', edgecolor='#334155', labelcolor='white', prop={'size': 7.5})
-
-    img_buf = io.BytesIO()
-    plt.tight_layout()
-    plt.savefig(img_buf, format='png', dpi=220, bbox_inches='tight', facecolor='#0b0f19')
-    plt.close()
-    img_buf.seek(0)
-
-    # PDF
-    pdf = ScoutingPDF(orientation='P', unit='mm', format=(120, 160))
-    pdf.set_auto_page_break(False)
-    pdf.add_page()
-    pdf.set_fill_color(11, 15, 25)
-    pdf.rect(0, 0, 120, 160, 'F')
-
-    pdf.set_y(3.0)
-    pdf.set_font("Helvetica", 'B', 13.5)
-    pdf.set_text_color(255, 255, 255)
-    pdf.cell(0, 5.5, player, align='C')
-
-    pos_y = 8.5
-    if pays and pays not in ["0", "Inconnu"]:
-        pdf.set_y(pos_y)
-        pdf.set_font("Helvetica", 'B', 7.5)
-        pdf.set_text_color(251, 191, 36)
-        pdf.cell(0, 3.5, f"[{pays.upper()}]", align='C')
-        pos_y += 3.5
-
-    pdf.set_y(pos_y)
-    pdf.set_font("Helvetica", 'B', 6.5)
-    pdf.set_text_color(34, 197, 94)
-    pdf.cell(0, 3.5, f"{comp.upper()}  |  {poste}  |  {nb_matchs} MATCH(S)", align='C')
-    pos_y += 4.0
-
-    # Matchs
-    pdf.set_y(pos_y)
-    cur_x = 6
-    pdf.set_font("Helvetica", "", 5.2)
-    for _, row_m in raw_matches_df.iterrows():
-        p_clean = str(row_m.get("Phase", "")).replace("Preliminary Round - ", "Prelim. ").replace("President's Cup - ", "Pres. Cup ")
-        adv = str(row_m.get("Adversaire", ""))
-        m_txt = clean_txt(f"{p_clean} (vs {adv})" if adv and adv != "0" else p_clean)
-        res_code = str(row_m.get("Resultat", "W")).upper()
-
-        txt_w = pdf.get_string_width(m_txt) + 1
-        if cur_x + txt_w + 7 > 114:
-            cur_x = 6
-            pos_y += 3.0
-        pdf.set_xy(cur_x, pos_y)
-        pdf.set_text_color(56, 189, 248)
-        pdf.cell(txt_w, 2.8, m_txt, align='L')
-
-        bx, by = cur_x + txt_w, pos_y + 0.3
-        pdf.set_fill_color(34, 197, 94) if res_code == "W" else (pdf.set_fill_color(234, 179, 8) if res_code == "D" else pdf.set_fill_color(239, 68, 68))
-        pdf.rect(bx, by, 4.0, 2.3, style='F')
-        pdf.set_xy(bx, by)
-        pdf.set_font("Helvetica", "B", 4.5)
-        pdf.set_text_color(11, 15, 25)
-        pdf.cell(4.0, 2.3, res_code, align='C')
-        cur_x += txt_w + 6.5
-        pdf.set_font("Helvetica", "", 5.2)
-
-    temp_img_name = f"temp_{abs(hash(player))}.png"
-    with open(temp_img_name, "wb") as f_img:
-        f_img.write(img_buf.read())
-    pdf.image(temp_img_name, x=13, y=max(pos_y + 3.5, 25), w=94)
-    if os.path.exists(temp_img_name):
-        os.remove(temp_img_name)
-
-    start_y = 120
-    card_w, card_h, sp = 32, 16, 4
-    sx = (120 - (3 * card_w + 2 * sp)) / 2
-    if not is_gk:
-        pdf.draw_kpi_card(sx, start_y, card_w, card_h, "Buts", f"{int(row_player['Buts'])}", f"{row_player['Buts_PM']:.1f} / match")
-        pdf.draw_kpi_card(sx + card_w + sp, start_y, card_w, card_h, "Assists", f"{int(row_player['Passes_D'])}", f"{row_player['PassesD_PM']:.1f} / match")
-        pdf.draw_kpi_card(sx + (card_w + sp)*2, start_y, card_w, card_h, "Implication", f"{int(row_player['Implication'])}", f"{row_player['Impl_PM']:.1f} / match")
-        sx2 = (120 - (2 * card_w + sp)) / 2
-        pdf.draw_kpi_card(sx2, start_y + card_h + 3, card_w, card_h, "Tirs Bloques", f"{int(row_player['Tirs_Bloques'])}", f"{row_player['Bloques_PM']:.1f} / match")
-        pdf.draw_kpi_card(sx2 + card_w + sp, start_y + card_h + 3, card_w, card_h, "Sanctions", f"{int(row_player['Sanctions_2min'])}", f"{row_player['Sanctions_PM']:.1f} / match")
-    else:
-        pdf.draw_kpi_card(sx, start_y, card_w, card_h, "Arrets", f"{int(row_player['Arrets'])}", f"{row_player['Arrets_PM']:.1f} / match")
-        pdf.draw_kpi_card(sx + card_w + sp, start_y, card_w, card_h, "% Arrets", f"{row_player['Pct_Arrets']:.1f}%", "Efficacite")
-        pdf.draw_kpi_card(sx + (card_w + sp)*2, start_y, card_w, card_h, "Relances", f"{int(row_player['Passes_D'])}", f"{row_player['PassesD_PM']:.1f} / match")
-        pdf.draw_kpi_card((120 - card_w) / 2, start_y + card_h + 3, card_w, card_h, "Sanctions", f"{int(row_player['Sanctions_2min'])}", f"{row_player['Sanctions_PM']:.1f} / match")
-
-    return bytes(pdf.output())
-
-# --- INTERFACE DE TÉLÉCHARGEMENT ---
+# --- CONSULTATION FICHE JOUEUSE EN 1 CLIC ---
 st.markdown("---")
-st.subheader("📄 Consulter et exporter le rapport d'une joueuse")
+st.subheader("📋 Fiche Détaillée & Parcours Chronologique")
+j_focus = st.selectbox("Sélectionner une joueuse pour afficher son profil complet :", df_working["Nom_Joueuse"].tolist())
 
-col1, col2 = st.columns([2, 1])
-with col1:
-    joueuse_sel = st.selectbox("Sélectionner une joueuse :", df_top["Nom_Joueuse"].head(top_n).tolist())
+if j_focus:
+    rf = df_working[df_working["Nom_Joueuse"] == j_focus].iloc[0]
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Poste Officiel", rf["Poste_Precis"])
+    c2.metric("Club", rf["Club"])
+    c3.metric("Taille & Âge", f"{int(rf['Taille'])} cm | {int(rf['Age'])} ans")
+    c4.metric("Titularisations (S)", f"{int(rf['Titularisations'])} / {int(rf['Matchs_Joues'])}")
 
-with col2:
-    if joueuse_sel:
-        row_p = df[df["Nom_Joueuse"] == joueuse_sel].iloc[0]
-        raw_m = df_raw[df_raw["Nom_Joueuse"] == joueuse_sel]
-        pdf_bytes = build_pdf_in_memory(row_p, raw_m)
-        
-        st.download_button(
-            label=f"⬇️ Télécharger la fiche PDF de {joueuse_sel}",
-            data=pdf_bytes,
-            file_name=f"Fiche_{joueuse_sel.replace(' ', '_')}.pdf",
-            mime="application/pdf"
-        )
+    st.markdown("**Chronologie des matchs disputés :**")
+    m_player = df_raw[df_raw["Nom_Joueuse"] == j_focus].copy()
+    
+    # Ordre chronologique
+    order_dict = {"Preliminary": 1, "Main": 2, "President": 2, "Quarter": 3, "Semi": 4, "Final": 5, "Placement": 5}
+    m_player["Ordre"] = m_player["Phase"].apply(lambda x: next((v for k, v in order_dict.items() if k in str(x)), 3))
+    m_player = m_player.sort_values(by="Ordre")
+
+    cols_m = st.columns(len(m_player))
+    for idx_m, (_, r_m) in enumerate(m_player.iterrows()):
+        with cols_m[idx_m]:
+            badge = "🟢 W" if r_m["Resultat"] == "W" else ("🟡 D" if r_m["Resultat"] == "D" else "🔴 L")
+            st.caption(f"**Match {idx_m+1}**")
+            st.write(f"vs **{r_m['Adversaire']}**")
+            st.write(badge)
+            st.caption(f"{r_m['Buts_Totaux']} buts | {r_m['Min_Jouees']} min")
