@@ -226,7 +226,7 @@ else:
 st.subheader(f"🏆 Classement — {secteur_choisi if secteur_choisi != 'Tous' else tri_choisi} ({'Meilleur Ratio %' if 'Efficacité' in mode_tri else 'Plus grand nombre'})")
 st.dataframe(df_display.head(top_n), use_container_width=True)
 
-# --- COMPARATEUR MULTI-JOUEUSES (LABELS SANS CHEVAUCHEMENT) ---
+# --- COMPARATEUR MULTI-JOUEUSES ULTRA-LISIBLE ---
 st.markdown("---")
 st.subheader("⚔️ Outil de Comparaison Directe (jusqu'à 10 joueuses)")
 
@@ -253,40 +253,38 @@ if joueuses_compare:
     ax.set_facecolor('#0b0f19')
     ax.set_theta_offset(np.pi / 2)
     ax.set_theta_direction(-1)
-    plt.xticks(ang, cat_comp, color='#f8fafc', size=10, fontweight='bold')
+    plt.xticks(ang, cat_comp, color='#f8fafc', size=10.5, fontweight='bold')
     plt.yticks([], [])
-    plt.ylim(0, 130)
+    plt.ylim(0, 125)
     ax.grid(color='#1e293b', linestyle='--', linewidth=0.8)
 
     va_p = [(v / max_val) * 70 + 18 for v in val_ref] + [(val_ref[0] / max_val) * 70 + 18]
-    ax.plot(ang_p, va_p, linewidth=1.8, linestyle='--', color='#94a3b8', label=ref_choice)
+    ax.plot(ang_p, va_p, linewidth=2.0, linestyle='--', color='#94a3b8', label=f"{ref_choice} (Ligne)")
+    ax.scatter(ang, va_p[:-1], color='#94a3b8', s=35, zorder=4)
+
+    # Affichage des chiffres de la moyenne de référence sur le radar
+    for a_pos, v_ref_num, r_pos in zip(ang, val_ref, va_p[:-1]):
+        ax.text(
+            a_pos, max(r_pos - 8.0, 6.0), f"{v_ref_num:.1f}",
+            color='#cbd5e1', fontsize=8, fontweight='bold', ha='center', va='center',
+            bbox=dict(boxstyle='round,pad=0.2', facecolor='#0f172a', edgecolor='#475569', alpha=0.95),
+            zorder=6
+        )
 
     pal = ['#22c55e', '#38bdf8', '#f59e0b', '#ec4899', '#a855f7', '#14b8a6', '#f43f5e', '#84cc16', '#eab308', '#6366f1']
     
-    # Positionnement sans chevauchement
     for i, j_nom in enumerate(joueuses_compare):
         rj = df_w[df_w["Nom_Joueuse"] == j_nom].iloc[0]
         raw_vals = [rj['Passes_D'], rj['Buts'], rj['Buts_7m'], rj['Tirs_Bloques'], rj['Implication']]
         v_plot = [(v / max_val) * 70 + 18 for v in raw_vals]
         col = pal[i % len(pal)]
-        ax.plot(ang_p, v_plot + [v_plot[0]], linewidth=2.2, color=col, label=f"{j_nom} ({rj['Pays']})")
-        ax.scatter(ang, v_plot, color=col, s=35, zorder=5)
-
-        # Décalage angulaire et radial pour chaque joueuse
-        ang_shift = (i - (len(joueuses_compare) - 1) / 2.0) * 0.04
-        for k, (a_base, val_num, rad_pos) in enumerate(zip(ang, raw_vals, v_plot)):
-            a_pos = a_base + ang_shift
-            r_label = rad_pos + 6.0 + (i % 2) * 5.0
-            ax.text(
-                a_pos, r_label, f"{int(val_num)}",
-                color=col, fontsize=7.5, fontweight='bold', ha='center', va='center',
-                bbox=dict(boxstyle='round,pad=0.15', facecolor='#0b0f19', edgecolor=col, alpha=0.92, linewidth=0.6),
-                zorder=10
-            )
+        ax.plot(ang_p, v_plot + [v_plot[0]], linewidth=2.4, color=col, label=f"{j_nom} ({rj['Pays']})")
+        ax.scatter(ang, v_plot, color=col, s=40, zorder=5)
 
     ax.legend(loc='upper right', bbox_to_anchor=(1.45, 1.15), facecolor='#151c2c', edgecolor='#334155', labelcolor='white')
     st.pyplot(fig)
 
+    # Tableau complet sous le graphique : zéro superposition
     st.markdown("##### 🔢 Tableau Comparatif Direct des Métriques")
     df_comp_tab = df_w[df_w["Nom_Joueuse"].isin(joueuses_compare)][["Nom_Joueuse", "Pays", "Poste_Precis", "Matchs_Joues", "Stat_Buts_Hors_7m", "Stat_7m", "Passes_D", "Implication", "Tirs_Bloques", "Sanctions_2m"]].reset_index(drop=True)
     df_comp_tab.columns = ["Joueuse", "Pays", "Poste", "Matchs", "Buts (hors 7m)", "7m", "Assists", "Implication", "Contres", "2m"]
@@ -301,10 +299,9 @@ j_sel = st.selectbox("Sélectionner la joueuse à analyser :", df_w["Nom_Joueuse
 if j_sel:
     rf = df_w[df_w["Nom_Joueuse"] == j_sel].iloc[0]
     
-    # Récupération de la date de naissance exacte depuis les données brutes
+    # Extraction sécurisée de la date de naissance
     raw_sub = df_raw[df_raw["Nom_Joueuse"] == j_sel]
-    dob_series = raw_sub["DOB"].dropna().astype(str)
-    dob_cands = [d.strip() for d in dob_series if d.strip() not in ["0", "0.0", "nan", "-", ""]]
+    dob_cands = [str(d).strip() for d in raw_sub["DOB"] if str(d).strip() not in ["0", "0.0", "nan", "-", ""]]
     dob_raw = dob_cands[0] if dob_cands else ""
     
     age_val = int(rf['Age']) if rf['Age'] > 0 else 0
@@ -326,20 +323,16 @@ if j_sel:
     st.markdown("#### 📅 Parcours Chronologique")
     m_player = raw_sub.copy()
 
-    # Logique de tri chronologique strict
     def score_chronologique(phase_str):
         p = str(phase_str)
-        # Prelim 1, 2, 3
         if "Prelim" in p or "Preliminary" in p:
             m_r = re.search(r"(\d+)\.\s*round", p, re.I)
             r_num = int(m_r.group(1)) if m_r else 1
             return 10 + r_num
-        # Main Round ou Pres. Cup 1, 2
         elif "Main Round" in p or "President" in p:
             m_r = re.search(r"(\d+)\.\s*round", p, re.I)
             r_num = int(m_r.group(1)) if m_r else 1
             return 20 + r_num
-        # Matches à élimination
         elif "Quarter" in p:
             return 30
         elif "Semi" in p:
@@ -394,7 +387,7 @@ if j_sel:
     plt.ylim(0, 115)
     ax_i.grid(color='#1e293b', linestyle='--', linewidth=0.8)
 
-    ax_i.plot(ang_i + [ang_i[0]], va_i + [va_i[0]], linewidth=1.8, linestyle='--', color='#94a3b8', label=f"Moyenne")
+    ax_i.plot(ang_i + [ang_i[0]], va_i + [va_i[0]], linewidth=1.8, linestyle='--', color='#94a3b8', label=f"Moyenne ({rf['Competition']})")
     ax_i.fill(ang_i + [ang_i[0]], va_i + [va_i[0]], color='#94a3b8', alpha=0.10)
     ax_i.scatter(ang_i, va_i, color='#94a3b8', s=25)
 
@@ -402,6 +395,7 @@ if j_sel:
     ax_i.fill(ang_i + [ang_i[0]], vp_i + [vp_i[0]], color='#22c55e', alpha=0.25)
     ax_i.scatter(ang_i, vp_i, color='#22c55e', s=45)
 
+    # Affichage des valeurs de la joueuse et de la moyenne
     for a_pos, v_p, v_a, r_p, r_a in zip(ang_i, val_ind, avg_ind, vp_i, va_i):
         ax_i.text(a_pos, r_p + 9, f"{int(v_p)}", color='#22c55e', fontsize=8.5, fontweight='bold', ha='center', va='center', bbox=dict(boxstyle='round,pad=0.2', facecolor='#0b0f19', edgecolor='#22c55e', alpha=0.85))
         ax_i.text(a_pos, max(r_a - 9, 4), f"{v_a:.1f}", color='#cbd5e1', fontsize=7, ha='center', va='center', bbox=dict(boxstyle='round,pad=0.2', facecolor='#0b0f19', edgecolor='#475569', alpha=0.80))
