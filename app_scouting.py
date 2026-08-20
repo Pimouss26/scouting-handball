@@ -22,7 +22,7 @@ def load_data():
         "Nom_Joueuse": "Inconnu", "Competition": "Championnat du monde U18", "Type_Poste": "CHAMP",
         "Poste_Precis": "Non renseigné", "Pays": "Inconnu", "DOB": "-", "Age": 0, "Club": "Non renseigné",
         "Taille": 0, "Min_Jouees": 20, "Titulaire": 0, "Poule_Niveau": "Poule Haute", "Phase": "-",
-        "Adversaire": "-", "Resultat": "W",
+        "Adversaire": "Adversaire", "Resultat": "W",
         "Buts_Sans_7m": 0, "Buts_Totaux": 0, "Tirs_Totaux": 0,
         "Buts_6m": 0, "Tirs_6m": 0, "Buts_9m": 0, "Tirs_9m": 0,
         "Buts_Wing": 0, "Tirs_Wing": 0, "Buts_7m": 0, "Tirs_7m": 0,
@@ -38,9 +38,16 @@ def load_data():
         if col not in df_raw.columns:
             df_raw[col] = default_val
 
+    def get_valid_first(series):
+        for v in series:
+            s_v = str(v).strip()
+            if s_v not in ["0", "0.0", "nan", "-", "None", ""]:
+                return s_v
+        return "-"
+
     df_grouped = df_raw.groupby(["Nom_Joueuse", "Competition"], as_index=False).agg({
         "Type_Poste": "first", "Poste_Precis": "first", "Pays": "first",
-        "Age": "max", "Club": "first", "Taille": "max",
+        "DOB": get_valid_first, "Age": "max", "Club": get_valid_first, "Taille": "max",
         "Min_Jouees": ["count", "sum"], "Titulaire": "sum",
         "Buts_Sans_7m": "sum", "Buts_Totaux": "sum", "Tirs_Totaux": "sum",
         "Buts_6m": "sum", "Tirs_6m": "sum",
@@ -63,7 +70,7 @@ def load_data():
     
     df_grouped.columns = [
         "Nom_Joueuse", "Competition", "Type_Poste", "Poste_Precis", "Pays",
-        "Age", "Club", "Taille", "Matchs_Joues", "Min_Totales", "Titularisations",
+        "DOB", "Age", "Club", "Taille", "Matchs_Joues", "Min_Totales", "Titularisations",
         "Buts", "Buts_Totaux", "Tirs_Totaux",
         "Buts_6m", "Tirs_6m", "Buts_9m", "Tirs_9m",
         "Buts_Wing", "Tirs_Wing", "Buts_7m", "Tirs_7m",
@@ -226,101 +233,107 @@ else:
 st.subheader(f"🏆 Classement — {secteur_choisi if secteur_choisi != 'Tous' else tri_choisi} ({'Meilleur Ratio %' if 'Efficacité' in mode_tri else 'Plus grand nombre'})")
 st.dataframe(df_display.head(top_n), use_container_width=True)
 
-# --- COMPARATEUR MULTI-JOUEUSES ULTRA-LISIBLE ---
+# --- COMPARATEUR MULTI-JOUEUSES (SESSION_STATE & TAILLE OPTIMISÉE) ---
 st.markdown("---")
 st.subheader("⚔️ Outil de Comparaison Directe (jusqu'à 10 joueuses)")
 
-rech_txt = st.text_input("🔍 Rechercher une joueuse :", "")
-options_j = df_w[df_w["Nom_Joueuse"].str.contains(rech_txt, case=False, na=False)]["Nom_Joueuse"].tolist() if rech_txt else df_w["Nom_Joueuse"].tolist()
+if "joueuses_compare" not in st.session_state:
+    st.session_state.joueuses_compare = df_w["Nom_Joueuse"].tolist()[:2] if len(df_w) >= 2 else []
 
-joueuses_compare = st.multiselect("Joueuses sélectionnées (jusqu'à 10) :", options_j, default=options_j[:2] if len(options_j) >= 2 and not rech_txt else [], max_selections=10)
-ref_choice = st.radio("Ligne de référence :", ["Moyenne Générale", "Top 10", "Top 20"], horizontal=True)
+col_rech_c, col_ref_c = st.columns([1.5, 1])
+with col_rech_c:
+    # Liste complète préservée
+    all_j_names = df_w["Nom_Joueuse"].tolist()
+    # Maintien des joueuses déjà sélectionnées même si on filtre
+    sel_persist = [j for j in st.session_state.joueuses_compare if j in all_j_names]
+    selected_comp = st.multiselect("Sélectionner jusqu'à 10 joueuses (recherche intégrée) :", all_j_names, default=sel_persist, max_selections=10)
+    st.session_state.joueuses_compare = selected_comp
 
-if joueuses_compare:
+with col_ref_c:
+    ref_choice = st.radio("Ligne de référence :", ["Moyenne Générale", "Top 10", "Top 20"], horizontal=True)
+
+if selected_comp:
     cat_comp = ['Assists', 'Buts (hors 7m)', '7m', 'Tirs Bloqués', 'Implication']
     sub_ref = df_w.sort_values(by="Buts", ascending=False).head(10 if ref_choice == "Top 10" else (20 if ref_choice == "Top 20" else len(df_w)))
     val_ref = [sub_ref['Passes_D'].mean(), sub_ref['Buts'].mean(), sub_ref['Buts_7m'].mean(), sub_ref['Tirs_Bloques'].mean(), sub_ref['Implication'].mean()]
     
     max_val = max(max(val_ref), 1)
-    for j in joueuses_compare:
+    for j in selected_comp:
         rj = df_w[df_w["Nom_Joueuse"] == j].iloc[0]
         max_val = max(max_val, rj['Passes_D'], rj['Buts'], rj['Buts_7m'], rj['Tirs_Bloques'], rj['Implication'])
 
     ang = [n / float(len(cat_comp)) * 2 * np.pi for n in range(len(cat_comp))]
     ang_p = ang + [ang[0]]
 
-    fig, ax = plt.subplots(figsize=(8.0, 8.0), subplot_kw=dict(polar=True), facecolor='#0b0f19')
+    # Taille compacte pour vue directe sans scroll
+    fig, ax = plt.subplots(figsize=(5.2, 5.2), subplot_kw=dict(polar=True), facecolor='#0b0f19')
     ax.set_facecolor('#0b0f19')
     ax.set_theta_offset(np.pi / 2)
     ax.set_theta_direction(-1)
-    plt.xticks(ang, cat_comp, color='#f8fafc', size=10.5, fontweight='bold')
+    plt.xticks(ang, cat_comp, color='#f8fafc', size=9.5, fontweight='bold')
     plt.yticks([], [])
-    plt.ylim(0, 130)
+    plt.ylim(0, 125)
     ax.grid(color='#1e293b', linestyle='--', linewidth=0.8)
 
-    # Ligne et points Moyenne
     va_p = [(v / max_val) * 70 + 18 for v in val_ref] + [(val_ref[0] / max_val) * 70 + 18]
-    ax.plot(ang_p, va_p, linewidth=2.0, linestyle='--', color='#94a3b8', label=f"{ref_choice}")
-    ax.scatter(ang, va_p[:-1], color='#94a3b8', s=35, zorder=4)
+    ax.plot(ang_p, va_p, linewidth=1.8, linestyle='--', color='#94a3b8', label=f"{ref_choice}")
+    ax.scatter(ang, va_p[:-1], color='#94a3b8', s=30, zorder=4)
 
-    # Affichage clair des chiffres de la moyenne
     for a_pos, v_ref_num, r_pos in zip(ang, val_ref, va_p[:-1]):
         ax.text(
-            a_pos, max(r_pos - 8.5, 5.0), f"{v_ref_num:.1f}",
-            color='#cbd5e1', fontsize=8, fontweight='bold', ha='center', va='center',
-            bbox=dict(boxstyle='round,pad=0.2', facecolor='#0f172a', edgecolor='#475569', alpha=0.95),
+            a_pos, max(r_pos - 8.0, 5.0), f"{v_ref_num:.1f}",
+            color='#cbd5e1', fontsize=7.5, fontweight='bold', ha='center', va='center',
+            bbox=dict(boxstyle='round,pad=0.15', facecolor='#0f172a', edgecolor='#475569', alpha=0.95),
             zorder=6
         )
 
     pal = ['#22c55e', '#38bdf8', '#f59e0b', '#ec4899', '#a855f7', '#14b8a6', '#f43f5e', '#84cc16', '#eab308', '#6366f1']
     
-    # Polygones des joueuses avec décalage précis des valeurs
-    for i, j_nom in enumerate(joueuses_compare):
+    for i, j_nom in enumerate(selected_comp):
         rj = df_w[df_w["Nom_Joueuse"] == j_nom].iloc[0]
         raw_vals = [rj['Passes_D'], rj['Buts'], rj['Buts_7m'], rj['Tirs_Bloques'], rj['Implication']]
         v_plot = [(v / max_val) * 70 + 18 for v in raw_vals]
         col = pal[i % len(pal)]
-        ax.plot(ang_p, v_plot + [v_plot[0]], linewidth=2.4, color=col, label=f"{j_nom} ({rj['Pays']})")
-        ax.scatter(ang, v_plot, color=col, s=35, zorder=5)
+        ax.plot(ang_p, v_plot + [v_plot[0]], linewidth=2.0, color=col, label=f"{j_nom} ({rj['Pays']})")
+        ax.scatter(ang, v_plot, color=col, s=30, zorder=5)
 
-        # Décalage angulaire adaptatif
-        ang_shift = (i - (len(joueuses_compare) - 1) / 2.0) * 0.05
+        ang_shift = (i - (len(selected_comp) - 1) / 2.0) * 0.05
         for a_base, val_num, rad_pos in zip(ang, raw_vals, v_plot):
             a_pos = a_base + ang_shift
             r_label = rad_pos + 6.5 + (i % 2) * 5.0
             ax.text(
                 a_pos, r_label, f"{int(val_num)}",
-                color=col, fontsize=7.5, fontweight='bold', ha='center', va='center',
-                bbox=dict(boxstyle='round,pad=0.15', facecolor='#0b0f19', edgecolor=col, alpha=0.92, linewidth=0.6),
+                color=col, fontsize=7.0, fontweight='bold', ha='center', va='center',
+                bbox=dict(boxstyle='round,pad=0.12', facecolor='#0b0f19', edgecolor=col, alpha=0.92, linewidth=0.5),
                 zorder=10
             )
 
-    # Légende placée sous le graphique pour ne rien masquer
-    ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.12), ncol=3, facecolor='#151c2c', edgecolor='#334155', labelcolor='white')
-    st.pyplot(fig)
+    col_chart, col_leg_tab = st.columns([1.1, 1.2])
+    with col_chart:
+        st.pyplot(fig)
+    with col_leg_tab:
+        st.markdown("##### 🔢 Tableau Comparatif Direct")
+        df_comp_tab = df_w[df_w["Nom_Joueuse"].isin(selected_comp)][["Nom_Joueuse", "Pays", "Poste_Precis", "Matchs_Joues", "Stat_Buts_Hors_7m", "Stat_7m", "Passes_D", "Implication", "Tirs_Bloques", "Sanctions_2m"]].reset_index(drop=True)
+        df_comp_tab.columns = ["Joueuse", "Pays", "Poste", "Matchs", "Buts (hors 7m)", "7m", "Assists", "Implication", "Contres", "2m"]
+        st.dataframe(df_comp_tab, use_container_width=True)
 
-    st.markdown("##### 🔢 Tableau Comparatif Direct des Métriques")
-    df_comp_tab = df_w[df_w["Nom_Joueuse"].isin(joueuses_compare)][["Nom_Joueuse", "Pays", "Poste_Precis", "Matchs_Joues", "Stat_Buts_Hors_7m", "Stat_7m", "Passes_D", "Implication", "Tirs_Bloques", "Sanctions_2m"]].reset_index(drop=True)
-    df_comp_tab.columns = ["Joueuse", "Pays", "Poste", "Matchs", "Buts (hors 7m)", "7m", "Assists", "Implication", "Contres", "2m"]
-    st.dataframe(df_comp_tab, use_container_width=True)
-
-# --- FICHE JOUEUSE LISIBLE ET COMPACTE ---
+# --- FICHE JOUEUSE AVEC RECHERCHE & DOB PRÉSERVÉ ---
 st.markdown("---")
 st.subheader("📋 Fiche Joueuse Complète")
 
-j_sel = st.selectbox("Sélectionner la joueuse à analyser :", df_w["Nom_Joueuse"].tolist())
+# Recherche intégrée avec selectbox dynamique
+liste_joueuses_fiche = df_w["Nom_Joueuse"].tolist()
+j_sel = st.selectbox("🔍 Rechercher et sélectionner une joueuse :", liste_joueuses_fiche)
 
 if j_sel:
     rf = df_w[df_w["Nom_Joueuse"] == j_sel].iloc[0]
     
-    # Récupération directe du champ DOB
     raw_sub = df_raw[df_raw["Nom_Joueuse"] == j_sel]
-    dob_cands = [str(d).strip() for d in raw_sub["DOB"] if str(d).strip() not in ["0", "0.0", "nan", "-", ""]]
-    dob_raw = dob_cands[0] if dob_cands else ""
+    dob_cands = [str(d).strip() for d in raw_sub["DOB"] if str(d).strip() not in ["0", "0.0", "nan", "-", "None", ""]]
+    dob_raw = dob_cands[0] if dob_cands else (str(rf["DOB"]).strip() if str(rf["DOB"]).strip() not in ["0", "0.0", "nan", "-", "None", ""] else "")
     
     age_val = int(rf['Age']) if rf['Age'] > 0 else 0
     
-    # Affichage exact et lisible de l'âge et de la date DOB
     if dob_raw and age_val > 0:
         age_str = f"{age_val} ans (DOB: {dob_raw})"
     elif dob_raw:
@@ -393,11 +406,11 @@ if j_sel:
     va_i = [(v / m_ind) * 60 + 18 for v in avg_ind]
     ang_i = [n / float(len(cat_ind)) * 2 * np.pi for n in range(len(cat_ind))]
 
-    fig_ind, ax_i = plt.subplots(figsize=(6.0, 6.0), subplot_kw=dict(polar=True), facecolor='#0b0f19')
+    fig_ind, ax_i = plt.subplots(figsize=(4.8, 4.8), subplot_kw=dict(polar=True), facecolor='#0b0f19')
     ax_i.set_facecolor('#0b0f19')
     ax_i.set_theta_offset(np.pi / 2)
     ax_i.set_theta_direction(-1)
-    plt.xticks(ang_i, cat_ind, color='#f8fafc', size=10, fontweight='bold')
+    plt.xticks(ang_i, cat_ind, color='#f8fafc', size=9.5, fontweight='bold')
     plt.yticks([], [])
     plt.ylim(0, 120)
     ax_i.grid(color='#1e293b', linestyle='--', linewidth=0.8)
@@ -411,13 +424,12 @@ if j_sel:
     ax_i.scatter(ang_i, vp_i, color='#22c55e', s=45)
 
     for a_pos, v_p, v_a, r_p, r_a in zip(ang_i, val_ind, avg_ind, vp_i, va_i):
-        ax_i.text(a_pos, r_p + 9, f"{int(v_p)}", color='#22c55e', fontsize=8.5, fontweight='bold', ha='center', va='center', bbox=dict(boxstyle='round,pad=0.2', facecolor='#0b0f19', edgecolor='#22c55e', alpha=0.85))
-        ax_i.text(a_pos, max(r_a - 9, 4), f"{v_a:.1f}", color='#cbd5e1', fontsize=7.5, ha='center', va='center', bbox=dict(boxstyle='round,pad=0.2', facecolor='#0b0f19', edgecolor='#475569', alpha=0.80))
+        ax_i.text(a_pos, r_p + 9, f"{int(v_p)}", color='#22c55e', fontsize=8.0, fontweight='bold', ha='center', va='center', bbox=dict(boxstyle='round,pad=0.2', facecolor='#0b0f19', edgecolor='#22c55e', alpha=0.85))
+        ax_i.text(a_pos, max(r_a - 9, 4), f"{v_a:.1f}", color='#cbd5e1', fontsize=7.0, ha='center', va='center', bbox=dict(boxstyle='round,pad=0.2', facecolor='#0b0f19', edgecolor='#475569', alpha=0.80))
 
-    # Légende propre sous le graphique
     ax_i.legend(loc='upper center', bbox_to_anchor=(0.5, -0.12), ncol=2, facecolor='#151c2c', edgecolor='#334155', labelcolor='white')
 
-    col_g, col_k = st.columns([1.2, 1])
+    col_g, col_k = st.columns([1.1, 1.2])
     with col_g:
         st.pyplot(fig_ind)
     with col_k:
