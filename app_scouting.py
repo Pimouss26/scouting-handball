@@ -233,28 +233,28 @@ else:
 st.subheader(f"🏆 Classement — {secteur_choisi if secteur_choisi != 'Tous' else tri_choisi} ({'Meilleur Ratio %' if 'Efficacité' in mode_tri else 'Plus grand nombre'})")
 st.dataframe(df_display.head(top_n), use_container_width=True)
 
-# --- COMPARATEUR MULTI-JOUEUSES ULTRA-ROBUSTE ---
+# --- COMPARATEUR MULTI-JOUEUSES (CALLBACK DIRECT ET SYNCHRONISÉ) ---
 st.markdown("---")
 st.subheader("⚔️ Outil de Comparaison Directe (jusqu'à 10 joueuses)")
 
 all_j_names = df_w["Nom_Joueuse"].tolist()
 
-# Initialisation permanente du pool de comparaison
-if "compare_pool" not in st.session_state:
-    st.session_state.compare_pool = all_j_names[:2] if len(all_j_names) >= 2 else []
+# Initialisation de la clé exacte du multiselect dans session_state
+if "ms_selection_compare" not in st.session_state:
+    st.session_state["ms_selection_compare"] = all_j_names[:2] if len(all_j_names) >= 2 else []
 
-# Nettoyage des joueuses qui ne seraient plus dans le filtre actif
-st.session_state.compare_pool = [j for j in st.session_state.compare_pool if j in all_j_names]
-
-def ajouter_joueuse_callback():
+# Callbacks agissant directement sur ms_selection_compare
+def callback_ajouter_joueuse():
     choix = st.session_state.get("cand_comp_select", "")
     if choix and choix != "Aucun résultat":
-        if choix not in st.session_state.compare_pool:
-            if len(st.session_state.compare_pool) < 10:
-                st.session_state.compare_pool.append(choix)
+        courant = list(st.session_state.get("ms_selection_compare", []))
+        if choix not in courant:
+            if len(courant) < 10:
+                courant.append(choix)
+                st.session_state["ms_selection_compare"] = courant
 
-def reinitialiser_callback():
-    st.session_state.compare_pool = []
+def callback_vider_selection():
+    st.session_state["ms_selection_compare"] = []
 
 c_rech1, c_rech2, c_btn1, c_btn2 = st.columns([1.6, 1.6, 0.8, 0.8])
 with c_rech1:
@@ -270,25 +270,22 @@ with c_rech2:
 with c_btn1:
     st.write("")
     st.write("")
-    st.button("➕ Ajouter", on_click=ajouter_joueuse_callback, key="btn_add_player")
+    st.button("➕ Ajouter", on_click=callback_ajouter_joueuse, key="btn_add_player")
 
 with c_btn2:
     st.write("")
     st.write("")
-    st.button("🗑️ Vider", on_click=reinitialiser_callback, key="btn_clear_players")
+    st.button("🗑️ Vider", on_click=callback_vider_selection, key="btn_clear_players")
 
 col_sel_c, col_ref_c = st.columns([2, 1])
 with col_sel_c:
-    # Le multiselect affiche et permet de retirer directement sans réinitialiser
+    # Widget multiselect lié directement à la session_state
     selected_comp = st.multiselect(
         "Joueuses actuellement comparées (retirables avec ✕) :",
         all_j_names,
-        default=st.session_state.compare_pool,
-        max_selections=10,
-        key="ms_comp_display"
+        key="ms_selection_compare",
+        max_selections=10
     )
-    # Synchronisation immédiate
-    st.session_state.compare_pool = selected_comp
 
 with col_ref_c:
     ref_choice = st.radio("Ligne de référence :", ["Moyenne Générale", "Top 10", "Top 20"], horizontal=True, key="ref_choice_radio")
