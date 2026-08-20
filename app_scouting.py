@@ -14,8 +14,30 @@ EXCEL_FILE = "data_handball.xlsx"
 def load_data():
     if not os.path.exists(EXCEL_FILE):
         return pd.DataFrame(), pd.DataFrame()
+    
     df_raw = pd.read_excel(EXCEL_FILE, sheet_name="DATA_MATCHS").fillna(0)
     
+    # Colonnes obligatoires avec valeurs par défaut si absentes du fichier Excel
+    colonnes_requises = {
+        "Nom_Joueuse": "Inconnu", "Competition": "Championnat du monde U18", "Type_Poste": "CHAMP",
+        "Poste_Precis": "Non renseigné", "Pays": "Inconnu", "DOB": "-", "Age": 0, "Club": "Non renseigné",
+        "Taille": 0, "Min_Jouees": 20, "Titulaire": 0, "Poule_Niveau": "Poule Haute", "Phase": "-",
+        "Adversaire": "-", "Resultat": "W",
+        "Buts_Sans_7m": 0, "Buts_Totaux": 0, "Tirs_Totaux": 0,
+        "Buts_6m": 0, "Tirs_6m": 0, "Buts_9m": 0, "Tirs_9m": 0,
+        "Buts_Wing": 0, "Tirs_Wing": 0, "Buts_7m": 0, "Tirs_7m": 0,
+        "Buts_FB": 0, "Tirs_FB": 0, "Buts_Brk": 0, "Tirs_Brk": 0, "Buts_LD": 0, "Tirs_LD": 0,
+        "Passes_D": 0, "Tirs_Bloques": 0, "Sanctions_2min": 0, "Cartons_Rouges": 0,
+        "Arrets_Totaux": 0, "Tirs_Subis": 0, "Arrets_6m": 0, "Tirs_6m_Subis": 0,
+        "Arrets_9m": 0, "Tirs_9m_Subis": 0, "Arrets_Wing": 0, "Tirs_Wing_Subis": 0,
+        "Arrets_7m": 0, "Tirs_7m_Subis": 0, "Arrets_FB": 0, "Tirs_FB_Subis": 0,
+        "Arrets_Brk": 0, "Tirs_Brk_Subis": 0, "Arrets_LD": 0, "Tirs_LD_Subis": 0
+    }
+    
+    for col, default_val in colonnes_requises.items():
+        if col not in df_raw.columns:
+            df_raw[col] = default_val
+
     df_grouped = df_raw.groupby(["Nom_Joueuse", "Competition"], as_index=False).agg({
         "Type_Poste": "first", "Poste_Precis": "first", "Pays": "first",
         "DOB": "first", "Age": "max", "Club": "first", "Taille": "max",
@@ -58,9 +80,9 @@ def load_data():
 
     def format_stat_ratio(reussis, totaux):
         pct = np.where(totaux > 0, (reussis / totaux) * 100, 0).round(1)
-        return [f"{int(r)}/{int(t)} ({p:.1f} %)" if t > 0 else "0/0 (0 %)" for r, t, p in zip(reussis, totaux, pct)]
+        return [f"{int(r)}/{int(t)} ({p:.1f} %)" if t > 0 else f"{int(r)}/0 (0 %)" for r, t, p in zip(reussis, totaux, pct)]
 
-    # Formats ratios Champ
+    # Formats Champ
     df_grouped["Stat_Buts_Hors_7m"] = format_stat_ratio(df_grouped["Buts"], df_grouped["Tirs_Hors_7m"])
     df_grouped["Stat_Global_Tir"] = format_stat_ratio(df_grouped["Buts_Totaux"], df_grouped["Tirs_Totaux"])
     df_grouped["Stat_6m"] = format_stat_ratio(df_grouped["Buts_6m"], df_grouped["Tirs_6m"])
@@ -71,7 +93,7 @@ def load_data():
     df_grouped["Stat_Brk"] = format_stat_ratio(df_grouped["Buts_Brk"], df_grouped["Tirs_Brk"])
     df_grouped["Stat_LD"] = format_stat_ratio(df_grouped["Buts_LD"], df_grouped["Tirs_LD"])
 
-    # Formats ratios Gardiennes
+    # Formats Gardiennes
     df_grouped["Stat_Global_Arrets"] = format_stat_ratio(df_grouped["Arrets_Totaux"], df_grouped["Tirs_Subis"])
     df_grouped["Stat_Arr_6m"] = format_stat_ratio(df_grouped["Arrets_6m"], df_grouped["Tirs_6m_Subis"])
     df_grouped["Stat_Arr_9m"] = format_stat_ratio(df_grouped["Arrets_9m"], df_grouped["Tirs_9m_Subis"])
@@ -95,6 +117,10 @@ df_raw, df = load_data()
 
 st.title("🤾‍♀️ Hub de Détection & Scouting Handball U18")
 
+if df.empty:
+    st.warning("Données indisponibles.")
+    st.stop()
+
 # --- FILTRES LATÉRAUX ---
 st.sidebar.header("🎯 Filtres de Recherche")
 all_pays = sorted([p for p in df["Pays"].unique() if str(p) not in ["0", "Inconnu", "0.0"]])
@@ -102,7 +128,7 @@ selected_pays = st.sidebar.multiselect("Pays / Sélections", all_pays, default=[
 poule_filter = st.sidebar.selectbox("Tableau", ["Toutes", "Poule Haute (Main Round / Finales)", "Poule Basse (President's Cup)"])
 type_poste_sel = st.sidebar.selectbox("Catégorie de Poste", ["Tous", "CHAMP", "GARDIENNE"])
 
-postes_uniques = sorted([p for p in df["Poste_Precis"].unique() if p not in ["Non renseigné", "0", 0]])
+postes_uniques = sorted([p for p in df["Poste_Precis"].unique() if str(p) not in ["Non renseigné", "0", "0.0"]])
 selected_postes = st.sidebar.multiselect("Poste(s) précis", postes_uniques, default=[])
 min_matchs = st.sidebar.slider("Matchs joués min.", 1, int(df["Matchs_Joues"].max()) if not df.empty else 8, 3)
 
@@ -224,7 +250,6 @@ if joueuses_compare:
         ax.plot(ang_p, v_plot + [v_plot[0]], linewidth=2.2, color=col, label=f"{j_nom} ({rj['Pays']})")
         ax.scatter(ang, v_plot, color=col, s=35)
         
-        # Décalage progressif des étiquettes avec boîte de lisibilité
         offset_rad = 5 + (i * 3.5)
         for a_pos, val_num, rad_pos in zip(ang, raw_vals, v_plot):
             ax.text(a_pos, rad_pos + offset_rad, f"{int(val_num)}", color=col, fontsize=8, fontweight='bold', ha='center', va='center',
@@ -242,8 +267,7 @@ j_sel = st.selectbox("Sélectionner la joueuse à analyser :", df_w["Nom_Joueuse
 if j_sel:
     rf = df_w[df_w["Nom_Joueuse"] == j_sel].iloc[0]
     
-    # Infos personnelles compactes
-    dob_val = str(rf["DOB"]) if str(rf["DOB"]) not in ["0", "0.0", "nan"] else ""
+    dob_val = str(rf["DOB"]) if str(rf["DOB"]) not in ["0", "0.0", "nan", "-"] else ""
     dob_txt = f"née le {dob_val}" if dob_val else (f"({int(rf['Age'])} ans)" if rf['Age'] > 0 else "")
     taille_txt = f"{int(rf['Taille'])} cm" if rf['Taille'] > 0 else "Taille N/A"
     
@@ -281,7 +305,7 @@ if j_sel:
     ax_i.set_facecolor('#0b0f19')
     ax_i.set_theta_offset(np.pi / 2)
     ax_i.set_theta_direction(-1)
-    plt.xticks(ang_i, cat_ind, color='#f8fafc', size=9, fontweight='bold')
+    plt.xticks(ang_i, cat_ind, color='#f8fafc', size=9.5, fontweight='bold')
     plt.yticks([], [])
     plt.ylim(0, 115)
     ax_i.grid(color='#1e293b', linestyle='--', linewidth=0.8)
