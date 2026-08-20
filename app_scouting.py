@@ -77,34 +77,50 @@ def load_data():
     
     df_grouped["Tirs_Hors_7m"] = np.maximum(df_grouped["Tirs_Totaux"] - df_grouped["Tirs_7m"], df_grouped["Buts"])
 
-    def format_stat_ratio(reussis, totaux):
-        pct = np.where(totaux > 0, (reussis / totaux) * 100, 0).round(1)
+    # Ratios numériques
+    df_grouped["Pct_Hors_7m"] = np.where(df_grouped["Tirs_Hors_7m"] > 0, (df_grouped["Buts"] / df_grouped["Tirs_Hors_7m"]) * 100, 0).round(1)
+    df_grouped["Pct_Global_Tir"] = np.where(df_grouped["Tirs_Totaux"] > 0, (df_grouped["Buts_Totaux"] / df_grouped["Tirs_Totaux"]) * 100, 0).round(1)
+    df_grouped["Pct_6m"] = np.where(df_grouped["Tirs_6m"] > 0, (df_grouped["Buts_6m"] / df_grouped["Tirs_6m"]) * 100, 0).round(1)
+    df_grouped["Pct_9m"] = np.where(df_grouped["Tirs_9m"] > 0, (df_grouped["Buts_9m"] / df_grouped["Tirs_9m"]) * 100, 0).round(1)
+    df_grouped["Pct_Wing"] = np.where(df_grouped["Tirs_Wing"] > 0, (df_grouped["Buts_Wing"] / df_grouped["Tirs_Wing"]) * 100, 0).round(1)
+    df_grouped["Pct_7m"] = np.where(df_grouped["Tirs_7m"] > 0, (df_grouped["Buts_7m"] / df_grouped["Tirs_7m"]) * 100, 0).round(1)
+    df_grouped["Pct_FB"] = np.where(df_grouped["Tirs_FB"] > 0, (df_grouped["Buts_FB"] / df_grouped["Tirs_FB"]) * 100, 0).round(1)
+    df_grouped["Pct_Brk"] = np.where(df_grouped["Tirs_Brk"] > 0, (df_grouped["Buts_Brk"] / df_grouped["Tirs_Brk"]) * 100, 0).round(1)
+    df_grouped["Pct_LD"] = np.where(df_grouped["Tirs_LD"] > 0, (df_grouped["Buts_LD"] / df_grouped["Tirs_LD"]) * 100, 0).round(1)
+
+    df_grouped["Pct_Arrets_Totaux"] = np.where(df_grouped["Tirs_Subis"] > 0, (df_grouped["Arrets_Totaux"] / df_grouped["Tirs_Subis"]) * 100, 0).round(1)
+    df_grouped["Pct_Arr_6m"] = np.where(df_grouped["Tirs_6m_Subis"] > 0, (df_grouped["Arrets_6m"] / df_grouped["Tirs_6m_Subis"]) * 100, 0).round(1)
+    df_grouped["Pct_Arr_9m"] = np.where(df_grouped["Tirs_9m_Subis"] > 0, (df_grouped["Arrets_9m"] / df_grouped["Tirs_9m_Subis"]) * 100, 0).round(1)
+    df_grouped["Pct_Arr_Wing"] = np.where(df_grouped["Tirs_Wing_Subis"] > 0, (df_grouped["Arrets_Wing"] / df_grouped["Tirs_Wing_Subis"]) * 100, 0).round(1)
+    df_grouped["Pct_Arr_7m"] = np.where(df_grouped["Tirs_7m_Subis"] > 0, (df_grouped["Arrets_7m"] / df_grouped["Tirs_7m_Subis"]) * 100, 0).round(1)
+    df_grouped["Pct_Arr_FB"] = np.where(df_grouped["Tirs_FB_Subis"] > 0, (df_grouped["Arrets_FB"] / df_grouped["Tirs_FB_Subis"]) * 100, 0).round(1)
+    df_grouped["Pct_Arr_Brk"] = np.where(df_grouped["Tirs_Brk_Subis"] > 0, (df_grouped["Arrets_Brk"] / df_grouped["Tirs_Brk_Subis"]) * 100, 0).round(1)
+    df_grouped["Pct_Arr_LD"] = np.where(df_grouped["Tirs_LD_Subis"] > 0, (df_grouped["Arrets_LD"] / df_grouped["Tirs_LD_Subis"]) * 100, 0).round(1)
+
+    # Affichage textuel lisible
+    def format_stat_ratio(reussis, totaux, pct):
         return [f"{int(r)}/{int(t)} ({p:.1f} %)" if t > 0 else f"{int(r)}/0 (0 %)" for r, t, p in zip(reussis, totaux, pct)]
 
-    # Formats Champ
-    df_grouped["Stat_Buts_Hors_7m"] = format_stat_ratio(df_grouped["Buts"], df_grouped["Tirs_Hors_7m"])
-    df_grouped["Stat_Global_Tir"] = format_stat_ratio(df_grouped["Buts_Totaux"], df_grouped["Tirs_Totaux"])
-    df_grouped["Stat_6m"] = format_stat_ratio(df_grouped["Buts_6m"], df_grouped["Tirs_6m"])
-    df_grouped["Stat_9m"] = format_stat_ratio(df_grouped["Buts_9m"], df_grouped["Tirs_9m"])
-    df_grouped["Stat_Wing"] = format_stat_ratio(df_grouped["Buts_Wing"], df_grouped["Tirs_Wing"])
-    df_grouped["Stat_7m"] = format_stat_ratio(df_grouped["Buts_7m"], df_grouped["Tirs_7m"])
-    df_grouped["Stat_FB"] = format_stat_ratio(df_grouped["Buts_FB"], df_grouped["Tirs_FB"])
-    df_grouped["Stat_Brk"] = format_stat_ratio(df_grouped["Buts_Brk"], df_grouped["Tirs_Brk"])
-    df_grouped["Stat_LD"] = format_stat_ratio(df_grouped["Buts_LD"], df_grouped["Tirs_LD"])
+    df_grouped["Stat_Buts_Hors_7m"] = format_stat_ratio(df_grouped["Buts"], df_grouped["Tirs_Hors_7m"], df_grouped["Pct_Hors_7m"])
+    df_grouped["Stat_Global_Tir"] = format_stat_ratio(df_grouped["Buts_Totaux"], df_grouped["Tirs_Totaux"], df_grouped["Pct_Global_Tir"])
+    df_grouped["Stat_6m"] = format_stat_ratio(df_grouped["Buts_6m"], df_grouped["Tirs_6m"], df_grouped["Pct_6m"])
+    df_grouped["Stat_9m"] = format_stat_ratio(df_grouped["Buts_9m"], df_grouped["Tirs_9m"], df_grouped["Pct_9m"])
+    df_grouped["Stat_Wing"] = format_stat_ratio(df_grouped["Buts_Wing"], df_grouped["Tirs_Wing"], df_grouped["Pct_Wing"])
+    df_grouped["Stat_7m"] = format_stat_ratio(df_grouped["Buts_7m"], df_grouped["Tirs_7m"], df_grouped["Pct_7m"])
+    df_grouped["Stat_FB"] = format_stat_ratio(df_grouped["Buts_FB"], df_grouped["Tirs_FB"], df_grouped["Pct_FB"])
+    df_grouped["Stat_Brk"] = format_stat_ratio(df_grouped["Buts_Brk"], df_grouped["Tirs_Brk"], df_grouped["Pct_Brk"])
+    df_grouped["Stat_LD"] = format_stat_ratio(df_grouped["Buts_LD"], df_grouped["Tirs_LD"], df_grouped["Pct_LD"])
 
-    # Formats Gardiennes
-    df_grouped["Stat_Global_Arrets"] = format_stat_ratio(df_grouped["Arrets_Totaux"], df_grouped["Tirs_Subis"])
-    df_grouped["Stat_Arr_6m"] = format_stat_ratio(df_grouped["Arrets_6m"], df_grouped["Tirs_6m_Subis"])
-    df_grouped["Stat_Arr_9m"] = format_stat_ratio(df_grouped["Arrets_9m"], df_grouped["Tirs_9m_Subis"])
-    df_grouped["Stat_Arr_Wing"] = format_stat_ratio(df_grouped["Arrets_Wing"], df_grouped["Tirs_Wing_Subis"])
-    df_grouped["Stat_Arr_7m"] = format_stat_ratio(df_grouped["Arrets_7m"], df_grouped["Tirs_7m_Subis"])
-    df_grouped["Stat_Arr_FB"] = format_stat_ratio(df_grouped["Arrets_FB"], df_grouped["Tirs_FB_Subis"])
-    df_grouped["Stat_Arr_Brk"] = format_stat_ratio(df_grouped["Arrets_Brk"], df_grouped["Tirs_Brk_Subis"])
-    df_grouped["Stat_Arr_LD"] = format_stat_ratio(df_grouped["Arrets_LD"], df_grouped["Tirs_LD_Subis"])
+    df_grouped["Stat_Global_Arrets"] = format_stat_ratio(df_grouped["Arrets_Totaux"], df_grouped["Tirs_Subis"], df_grouped["Pct_Arrets_Totaux"])
+    df_grouped["Stat_Arr_6m"] = format_stat_ratio(df_grouped["Arrets_6m"], df_grouped["Tirs_6m_Subis"], df_grouped["Pct_Arr_6m"])
+    df_grouped["Stat_Arr_9m"] = format_stat_ratio(df_grouped["Arrets_9m"], df_grouped["Tirs_9m_Subis"], df_grouped["Pct_Arr_9m"])
+    df_grouped["Stat_Arr_Wing"] = format_stat_ratio(df_grouped["Arrets_Wing"], df_grouped["Tirs_Wing_Subis"], df_grouped["Pct_Arr_Wing"])
+    df_grouped["Stat_Arr_7m"] = format_stat_ratio(df_grouped["Arrets_7m"], df_grouped["Tirs_7m_Subis"], df_grouped["Pct_Arr_7m"])
+    df_grouped["Stat_Arr_FB"] = format_stat_ratio(df_grouped["Arrets_FB"], df_grouped["Tirs_FB_Subis"], df_grouped["Pct_Arr_FB"])
+    df_grouped["Stat_Arr_Brk"] = format_stat_ratio(df_grouped["Arrets_Brk"], df_grouped["Tirs_Brk_Subis"], df_grouped["Pct_Arr_Brk"])
+    df_grouped["Stat_Arr_LD"] = format_stat_ratio(df_grouped["Arrets_LD"], df_grouped["Tirs_LD_Subis"], df_grouped["Pct_Arr_LD"])
 
     df_grouped["Implication"] = df_grouped["Buts"] + df_grouped["Buts_7m"] + df_grouped["Passes_D"]
-    df_grouped["Pct_Arrets"] = np.where(df_grouped["Tirs_Subis"] > 0, (df_grouped["Arrets_Totaux"] / df_grouped["Tirs_Subis"]) * 100, 0).round(1)
-    df_grouped["Pct_7m"] = np.where(df_grouped["Tirs_7m"] > 0, (df_grouped["Buts_7m"] / df_grouped["Tirs_7m"]) * 100, 0).round(1)
     df_grouped["Buts_PM"] = (df_grouped["Buts"] / df_grouped["Matchs_Joues"]).round(1)
     df_grouped["PassesD_PM"] = (df_grouped["Passes_D"] / df_grouped["Matchs_Joues"]).round(1)
     df_grouped["Impl_PM"] = (df_grouped["Implication"] / df_grouped["Matchs_Joues"]).round(1)
@@ -145,46 +161,50 @@ if selected_postes:
     df_w = df_w[df_w["Poste_Precis"].isin(selected_postes)]
 df_w = df_w[df_w["Matchs_Joues"] >= min_matchs]
 
-# --- SÉLECTION DES CRITÈRES ET SECTEURS (ORDRE INVERSÉ) ---
+# --- SÉLECTION DES CRITÈRES & SECTEURS ---
 st.sidebar.header("📊 Critères & Secteurs")
 
 if type_poste_sel == "GARDIENNE":
-    criteres = {"% d'Arrêts": "Pct_Arrets", "Arrêts Totaux": "Arrets_Totaux", "Arrêts / Match": "Arrets_PM", "Relances (Passes D)": "Passes_D"}
+    criteres = {"Arrêts Totaux": ("Arrets_Totaux", "Pct_Arrets_Totaux"), "Arrêts / Match": ("Arrets_PM", "Pct_Arrets_Totaux"), "Relances (Passes D)": ("Passes_D", "Passes_D")}
     tri_choisi = st.sidebar.selectbox("Classer par", list(criteres.keys()))
     
     secteur_choisi = st.sidebar.selectbox("🎯 Secteur d'arrêt prioritaire", ["Tous", "Arrêts 6m", "Arrêts 9m", "Arrêts Wing", "Arrêts 7m", "Arrêts FB (Contre-attaque)", "Arrêts Brk (Percée)", "Arrêts LD (Cage vide)"])
     
     mapping_secteurs = {
-        "Arrêts 6m": ("Arrets_6m", "Stat_Arr_6m", "Arrêts 6m (Ratio %)"),
-        "Arrêts 9m": ("Arrets_9m", "Stat_Arr_9m", "Arrêts 9m (Ratio %)"),
-        "Arrêts Wing": ("Arrets_Wing", "Stat_Arr_Wing", "Arrêts Wing (Ratio %)"),
-        "Arrêts 7m": ("Arrets_7m", "Stat_Arr_7m", "Arrêts 7m (Ratio %)"),
-        "Arrêts FB (Contre-attaque)": ("Arrets_FB", "Stat_Arr_FB", "Arrêts FB (Ratio %)"),
-        "Arrêts Brk (Percée)": ("Arrets_Brk", "Stat_Arr_Brk", "Arrêts Brk (Ratio %)"),
-        "Arrêts LD (Cage vide)": ("Arrets_LD", "Stat_Arr_LD", "Arrêts LD (Ratio %)")
+        "Arrêts 6m": ("Arrets_6m", "Pct_Arr_6m", "Stat_Arr_6m", "Arrêts 6m (Ratio %)"),
+        "Arrêts 9m": ("Arrets_9m", "Pct_Arr_9m", "Stat_Arr_9m", "Arrêts 9m (Ratio %)"),
+        "Arrêts Wing": ("Arrets_Wing", "Pct_Arr_Wing", "Stat_Arr_Wing", "Arrêts Wing (Ratio %)"),
+        "Arrêts 7m": ("Arrets_7m", "Pct_Arr_7m", "Stat_Arr_7m", "Arrêts 7m (Ratio %)"),
+        "Arrêts FB (Contre-attaque)": ("Arrets_FB", "Pct_Arr_FB", "Stat_Arr_FB", "Arrêts FB (Ratio %)"),
+        "Arrêts Brk (Percée)": ("Arrets_Brk", "Pct_Arr_Brk", "Stat_Arr_Brk", "Arrêts Brk (Ratio %)"),
+        "Arrêts LD (Cage vide)": ("Arrets_LD", "Pct_Arr_LD", "Stat_Arr_LD", "Arrêts LD (Ratio %)")
     }
 else:
-    criteres = {"Buts (Hors 7m)": "Buts", "Buts par Match": "Buts_PM", "Implication Totale": "Implication", "Buts sur 7m": "Buts_7m", "Assists": "Passes_D"}
+    criteres = {"Buts (Hors 7m)": ("Buts", "Pct_Hors_7m"), "Buts par Match": ("Buts_PM", "Pct_Hors_7m"), "Implication Totale": ("Implication", "Implication"), "Buts sur 7m": ("Buts_7m", "Pct_7m"), "Assists": ("Passes_D", "Passes_D")}
     tri_choisi = st.sidebar.selectbox("Classer par", list(criteres.keys()))
     
     secteur_choisi = st.sidebar.selectbox("🎯 Secteur de tir prioritaire", ["Tous", "Secteur 6m", "Secteur 9m", "Secteur Wing (Ailes)", "Secteur 7m", "Contre-attaque (FB)", "Percée (Brk)", "Buts Cage Vide (LD)"])
     
     mapping_secteurs = {
-        "Secteur 6m": ("Buts_6m", "Stat_6m", "Buts 6m (Ratio %)"),
-        "Secteur 9m": ("Buts_9m", "Stat_9m", "Buts 9m (Ratio %)"),
-        "Secteur Wing (Ailes)": ("Buts_Wing", "Stat_Wing", "Buts Wing (Ratio %)"),
-        "Secteur 7m": ("Buts_7m", "Stat_7m", "Buts 7m (Ratio %)"),
-        "Contre-attaque (FB)": ("Buts_FB", "Stat_FB", "Buts FB (Ratio %)"),
-        "Percée (Brk)": ("Buts_Brk", "Stat_Brk", "Buts Brk (Ratio %)"),
-        "Buts Cage Vide (LD)": ("Buts_LD", "Stat_LD", "Buts LD (Ratio %)")
+        "Secteur 6m": ("Buts_6m", "Pct_6m", "Stat_6m", "Buts 6m (Ratio %)"),
+        "Secteur 9m": ("Buts_9m", "Pct_9m", "Stat_9m", "Buts 9m (Ratio %)"),
+        "Secteur Wing (Ailes)": ("Buts_Wing", "Pct_Wing", "Stat_Wing", "Buts Wing (Ratio %)"),
+        "Secteur 7m": ("Buts_7m", "Pct_7m", "Stat_7m", "Buts 7m (Ratio %)"),
+        "Contre-attaque (FB)": ("Buts_FB", "Pct_FB", "Stat_FB", "Buts FB (Ratio %)"),
+        "Percée (Brk)": ("Buts_Brk", "Pct_Brk", "Stat_Brk", "Buts Brk (Ratio %)"),
+        "Buts Cage Vide (LD)": ("Buts_LD", "Pct_LD", "Stat_LD", "Buts LD (Ratio %)")
     }
 
+mode_tri = st.sidebar.radio("Type de classement :", ["Par Volume (Quantité)", "Par Efficacité (Meilleur Ratio %)"], horizontal=True)
+
 if secteur_choisi != "Tous":
-    col_tri_val, col_stat_txt, nom_col_affiche = mapping_secteurs[secteur_choisi]
-    df_top = df_w.sort_values(by=col_tri_val, ascending=False).reset_index(drop=True)
+    col_vol, col_pct, col_stat_txt, nom_col_affiche = mapping_secteurs[secteur_choisi]
+    col_tri_active = col_pct if "Efficacité" in mode_tri else col_vol
+    df_top = df_w.sort_values(by=col_tri_active, ascending=False).reset_index(drop=True)
 else:
-    col_tri_val = criteres[tri_choisi]
-    df_top = df_w.sort_values(by=col_tri_val, ascending=False).reset_index(drop=True)
+    col_vol, col_pct = criteres[tri_choisi]
+    col_tri_active = col_pct if "Efficacité" in mode_tri else col_vol
+    df_top = df_w.sort_values(by=col_tri_active, ascending=False).reset_index(drop=True)
 
 top_n = st.sidebar.slider("Afficher le Top :", 5, 50, 15)
 df_top.index += 1
@@ -204,7 +224,7 @@ else:
         cols_tableau = ["Nom_Joueuse", "Pays", "Poste_Precis", "Matchs_Joues", "Stat_Buts_Hors_7m", "Stat_7m", "Stat_Global_Tir", "Passes_D", "Implication", "Sanctions_2m"]
         df_display = df_top[cols_tableau].rename(columns={"Stat_Buts_Hors_7m": "Buts hors 7m (Ratio %)", "Stat_7m": "7m (Ratio %)", "Stat_Global_Tir": "Tirs Totaux (Ratio %)"})
 
-st.subheader(f"🏆 Classement — {secteur_choisi if secteur_choisi != 'Tous' else tri_choisi}")
+st.subheader(f"🏆 Classement — {secteur_choisi if secteur_choisi != 'Tous' else tri_choisi} ({'Meilleur Ratio %' if 'Efficacité' in mode_tri else 'Plus grand nombre'})")
 st.dataframe(df_display.head(top_n), use_container_width=True)
 
 # --- COMPARATEUR MULTI-JOUEUSES ---
@@ -214,7 +234,7 @@ st.subheader("⚔️ Outil de Comparaison Directe (jusqu'à 10 joueuses)")
 rech_txt = st.text_input("🔍 Rechercher une joueuse :", "")
 options_j = df_w[df_w["Nom_Joueuse"].str.contains(rech_txt, case=False, na=False)]["Nom_Joueuse"].tolist() if rech_txt else df_w["Nom_Joueuse"].tolist()
 
-joueuses_compare = st.multiselect("Joueuses sélectionnées :", options_j, default=options_j[:2] if len(options_j) >= 2 and not rech_txt else [], max_selections=10)
+joueuses_compare = st.multiselect("Joueuses sélectionnées (jusqu'à 10) :", options_j, default=options_j[:2] if len(options_j) >= 2 and not rech_txt else [], max_selections=10)
 ref_choice = st.radio("Ligne de référence :", ["Moyenne Générale", "Top 10", "Top 20"], horizontal=True)
 
 if joueuses_compare:
@@ -234,30 +254,31 @@ if joueuses_compare:
     ax.set_facecolor('#0b0f19')
     ax.set_theta_offset(np.pi / 2)
     ax.set_theta_direction(-1)
-    plt.xticks(ang, cat_comp, color='#f8fafc', size=9.5, fontweight='bold')
+    plt.xticks(ang, cat_comp, color='#f8fafc', size=10, fontweight='bold')
     plt.yticks([], [])
     plt.ylim(0, 115)
     ax.grid(color='#1e293b', linestyle='--', linewidth=0.8)
 
     va_p = [(v / max_val) * 70 + 18 for v in val_ref] + [(val_ref[0] / max_val) * 70 + 18]
-    ax.plot(ang_p, va_p, linewidth=1.6, linestyle='--', color='#94a3b8', label=ref_choice)
+    ax.plot(ang_p, va_p, linewidth=1.8, linestyle='--', color='#94a3b8', label=ref_choice)
 
     pal = ['#22c55e', '#38bdf8', '#f59e0b', '#ec4899', '#a855f7', '#14b8a6', '#f43f5e', '#84cc16', '#eab308', '#6366f1']
+    
     for i, j_nom in enumerate(joueuses_compare):
         rj = df_w[df_w["Nom_Joueuse"] == j_nom].iloc[0]
         raw_vals = [rj['Passes_D'], rj['Buts'], rj['Buts_7m'], rj['Tirs_Bloques'], rj['Implication']]
         v_plot = [(v / max_val) * 70 + 18 for v in raw_vals]
         col = pal[i % len(pal)]
-        ax.plot(ang_p, v_plot + [v_plot[0]], linewidth=2.2, color=col, label=f"{j_nom} ({rj['Pays']})")
-        ax.scatter(ang, v_plot, color=col, s=35)
-        
-        offset_rad = 5 + (i * 3.5)
-        for a_pos, val_num, rad_pos in zip(ang, raw_vals, v_plot):
-            ax.text(a_pos, rad_pos + offset_rad, f"{int(val_num)}", color=col, fontsize=8, fontweight='bold', ha='center', va='center',
-                    bbox=dict(boxstyle='round,pad=0.15', facecolor='#0b0f19', edgecolor=col, alpha=0.9, linewidth=0.5))
+        ax.plot(ang_p, v_plot + [v_plot[0]], linewidth=2.5, color=col, label=f"{j_nom} ({rj['Pays']})")
+        ax.scatter(ang, v_plot, color=col, s=40)
 
-    ax.legend(loc='upper right', bbox_to_anchor=(1.35, 1.15), facecolor='#151c2c', edgecolor='#334155', labelcolor='white')
+    ax.legend(loc='upper right', bbox_to_anchor=(1.40, 1.15), facecolor='#151c2c', edgecolor='#334155', labelcolor='white')
     st.pyplot(fig)
+
+    st.markdown("##### 🔢 Tableau Comparatif Direct des Métriques")
+    df_comp_tab = df_w[df_w["Nom_Joueuse"].isin(joueuses_compare)][["Nom_Joueuse", "Pays", "Poste_Precis", "Matchs_Joues", "Stat_Buts_Hors_7m", "Stat_7m", "Passes_D", "Implication", "Tirs_Bloques", "Sanctions_2m"]].reset_index(drop=True)
+    df_comp_tab.columns = ["Joueuse", "Pays", "Poste", "Matchs", "Buts (hors 7m)", "7m", "Assists", "Implication", "Contres", "2m"]
+    st.dataframe(df_comp_tab, use_container_width=True)
 
 # --- FICHE JOUEUSE LISIBLE ET COMPACTE ---
 st.markdown("---")
@@ -269,18 +290,17 @@ if j_sel:
     rf = df_w[df_w["Nom_Joueuse"] == j_sel].iloc[0]
     
     dob_raw = str(rf.get("DOB", "")).strip()
-    has_dob = dob_raw not in ["0", "0.0", "nan", "-", ""]
-    
     age_val = int(rf['Age']) if rf['Age'] > 0 else 0
-    if age_val > 0 and has_dob:
-        annee = dob_raw.split(".")[-1] if "." in dob_raw else dob_raw
-        age_str = f"{age_val} ans ({annee})"
+    
+    # Affichage exact et lisible de l'âge avec la date de naissance complète
+    if dob_raw not in ["0", "0.0", "nan", "-", ""] and age_val > 0:
+        age_str = f"{age_val} ans (née le {dob_raw})"
+    elif dob_raw not in ["0", "0.0", "nan", "-", ""]:
+        age_str = f"Née le {dob_raw}"
     elif age_val > 0:
         age_str = f"{age_val} ans"
-    elif has_dob:
-        age_str = f"Née en {dob_raw}"
     else:
-        age_str = "Âge N/A"
+        age_str = "Âge / Date N/A"
 
     taille_txt = f"{int(rf['Taille'])} cm" if rf['Taille'] > 0 else "Taille N/A"
     
@@ -329,7 +349,7 @@ if j_sel:
     ax_i.set_facecolor('#0b0f19')
     ax_i.set_theta_offset(np.pi / 2)
     ax_i.set_theta_direction(-1)
-    plt.xticks(ang_i, cat_ind, color='#f8fafc', size=9, fontweight='bold')
+    plt.xticks(ang_i, cat_ind, color='#f8fafc', size=9.5, fontweight='bold')
     plt.yticks([], [])
     plt.ylim(0, 115)
     ax_i.grid(color='#1e293b', linestyle='--', linewidth=0.8)
