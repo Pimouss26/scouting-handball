@@ -17,7 +17,6 @@ def load_data():
     
     df_raw = pd.read_excel(EXCEL_FILE, sheet_name="DATA_MATCHS").fillna(0)
     
-    # Colonnes obligatoires avec valeurs par défaut si absentes du fichier Excel
     colonnes_requises = {
         "Nom_Joueuse": "Inconnu", "Competition": "Championnat du monde U18", "Type_Poste": "CHAMP",
         "Poste_Precis": "Non renseigné", "Pays": "Inconnu", "DOB": "-", "Age": 0, "Club": "Non renseigné",
@@ -146,12 +145,14 @@ if selected_postes:
     df_w = df_w[df_w["Poste_Precis"].isin(selected_postes)]
 df_w = df_w[df_w["Matchs_Joues"] >= min_matchs]
 
-# --- SÉLECTION DES SECTEURS ET CRITÈRES ---
+# --- SÉLECTION DES CRITÈRES ET SECTEURS (ORDRE INVERSÉ) ---
 st.sidebar.header("📊 Critères & Secteurs")
 
 if type_poste_sel == "GARDIENNE":
-    secteur_choisi = st.sidebar.selectbox("🎯 Secteur d'arrêt prioritaire", ["Tous", "Arrêts 6m", "Arrêts 9m", "Arrêts Wing", "Arrêts 7m", "Arrêts FB (Contre-attaque)", "Arrêts Brk (Percée)", "Arrêts LD (Cage vide)"])
     criteres = {"% d'Arrêts": "Pct_Arrets", "Arrêts Totaux": "Arrets_Totaux", "Arrêts / Match": "Arrets_PM", "Relances (Passes D)": "Passes_D"}
+    tri_choisi = st.sidebar.selectbox("Classer par", list(criteres.keys()))
+    
+    secteur_choisi = st.sidebar.selectbox("🎯 Secteur d'arrêt prioritaire", ["Tous", "Arrêts 6m", "Arrêts 9m", "Arrêts Wing", "Arrêts 7m", "Arrêts FB (Contre-attaque)", "Arrêts Brk (Percée)", "Arrêts LD (Cage vide)"])
     
     mapping_secteurs = {
         "Arrêts 6m": ("Arrets_6m", "Stat_Arr_6m", "Arrêts 6m (Ratio %)"),
@@ -163,8 +164,10 @@ if type_poste_sel == "GARDIENNE":
         "Arrêts LD (Cage vide)": ("Arrets_LD", "Stat_Arr_LD", "Arrêts LD (Ratio %)")
     }
 else:
-    secteur_choisi = st.sidebar.selectbox("🎯 Secteur de tir prioritaire", ["Tous", "Secteur 6m", "Secteur 9m", "Secteur Wing (Ailes)", "Secteur 7m", "Contre-attaque (FB)", "Percée (Brk)", "Buts Cage Vide (LD)"])
     criteres = {"Buts (Hors 7m)": "Buts", "Buts par Match": "Buts_PM", "Implication Totale": "Implication", "Buts sur 7m": "Buts_7m", "Assists": "Passes_D"}
+    tri_choisi = st.sidebar.selectbox("Classer par", list(criteres.keys()))
+    
+    secteur_choisi = st.sidebar.selectbox("🎯 Secteur de tir prioritaire", ["Tous", "Secteur 6m", "Secteur 9m", "Secteur Wing (Ailes)", "Secteur 7m", "Contre-attaque (FB)", "Percée (Brk)", "Buts Cage Vide (LD)"])
     
     mapping_secteurs = {
         "Secteur 6m": ("Buts_6m", "Stat_6m", "Buts 6m (Ratio %)"),
@@ -175,8 +178,6 @@ else:
         "Percée (Brk)": ("Buts_Brk", "Stat_Brk", "Buts Brk (Ratio %)"),
         "Buts Cage Vide (LD)": ("Buts_LD", "Stat_LD", "Buts LD (Ratio %)")
     }
-
-tri_choisi = st.sidebar.selectbox("Classer par", list(criteres.keys()))
 
 if secteur_choisi != "Tous":
     col_tri_val, col_stat_txt, nom_col_affiche = mapping_secteurs[secteur_choisi]
@@ -206,7 +207,7 @@ else:
 st.subheader(f"🏆 Classement — {secteur_choisi if secteur_choisi != 'Tous' else tri_choisi}")
 st.dataframe(df_display.head(top_n), use_container_width=True)
 
-# --- COMPARATEUR MULTI-JOUEUSES (CLARTÉ OPTIMISÉE) ---
+# --- COMPARATEUR MULTI-JOUEUSES ---
 st.markdown("---")
 st.subheader("⚔️ Outil de Comparaison Directe (jusqu'à 10 joueuses)")
 
@@ -267,12 +268,24 @@ j_sel = st.selectbox("Sélectionner la joueuse à analyser :", df_w["Nom_Joueuse
 if j_sel:
     rf = df_w[df_w["Nom_Joueuse"] == j_sel].iloc[0]
     
-    dob_val = str(rf["DOB"]) if str(rf["DOB"]) not in ["0", "0.0", "nan", "-"] else ""
-    dob_txt = f"née le {dob_val}" if dob_val else (f"({int(rf['Age'])} ans)" if rf['Age'] > 0 else "")
+    dob_raw = str(rf.get("DOB", "")).strip()
+    has_dob = dob_raw not in ["0", "0.0", "nan", "-", ""]
+    
+    age_val = int(rf['Age']) if rf['Age'] > 0 else 0
+    if age_val > 0 and has_dob:
+        annee = dob_raw.split(".")[-1] if "." in dob_raw else dob_raw
+        age_str = f"{age_val} ans ({annee})"
+    elif age_val > 0:
+        age_str = f"{age_val} ans"
+    elif has_dob:
+        age_str = f"Née en {dob_raw}"
+    else:
+        age_str = "Âge N/A"
+
     taille_txt = f"{int(rf['Taille'])} cm" if rf['Taille'] > 0 else "Taille N/A"
     
     st.markdown(f"### **{j_sel}** — {rf['Pays']}")
-    st.markdown(f"**Poste :** `{rf['Poste_Precis']}` | **Club :** `{rf['Club']}` | **Physique / Âge :** `{taille_txt} — {dob_txt}`")
+    st.markdown(f"**Poste :** `{rf['Poste_Precis']}` | **Club :** `{rf['Club']}` | **Physique & Âge :** `{taille_txt} — {age_str}`")
 
     st.markdown("#### 📅 Parcours Chronologique")
     m_player = df_raw[df_raw["Nom_Joueuse"] == j_sel].copy()
@@ -281,11 +294,22 @@ if j_sel:
     m_player["Ordre"] = m_player["Phase"].apply(lambda x: next((v for k, v in order_map.items() if k in str(x)), 3))
     m_player = m_player.sort_values(by="Ordre")
 
+    def formater_tour(phase_raw):
+        p = str(phase_raw)
+        p = p.replace("Preliminary Round - ", "Prelim. ")
+        p = p.replace("President's Cup - ", "Pres. Cup ")
+        p = p.replace("President Cup - ", "Pres. Cup ")
+        p = p.replace("Quarter-final", "1/4 Finale")
+        p = p.replace("Semi-final", "1/2 Finale")
+        p = p.replace("Final Round", "Phases Finales")
+        return p.strip()
+
     cols_m = st.columns(max(len(m_player), 1))
     for idx_m, (_, r_m) in enumerate(m_player.iterrows()):
         with cols_m[idx_m]:
+            tour_label = formater_tour(r_m["Phase"])
             badge = "🟢 W" if r_m["Resultat"] == "W" else ("🟡 D" if r_m["Resultat"] == "D" else "🔴 L")
-            st.caption(f"**Match {idx_m+1}**")
+            st.caption(f"**{tour_label}**")
             st.write(f"vs **{r_m['Adversaire']}**")
             st.write(badge)
             st.caption(f"{r_m['Buts_Totaux']} buts | {r_m['Min_Jouees']} min")
@@ -305,7 +329,7 @@ if j_sel:
     ax_i.set_facecolor('#0b0f19')
     ax_i.set_theta_offset(np.pi / 2)
     ax_i.set_theta_direction(-1)
-    plt.xticks(ang_i, cat_ind, color='#f8fafc', size=9.5, fontweight='bold')
+    plt.xticks(ang_i, cat_ind, color='#f8fafc', size=9, fontweight='bold')
     plt.yticks([], [])
     plt.ylim(0, 115)
     ax_i.grid(color='#1e293b', linestyle='--', linewidth=0.8)
