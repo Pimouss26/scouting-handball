@@ -233,21 +233,44 @@ else:
 st.subheader(f"🏆 Classement — {secteur_choisi if secteur_choisi != 'Tous' else tri_choisi} ({'Meilleur Ratio %' if 'Efficacité' in mode_tri else 'Plus grand nombre'})")
 st.dataframe(df_display.head(top_n), use_container_width=True)
 
-# --- COMPARATEUR MULTI-JOUEUSES (SESSION_STATE & TAILLE OPTIMISÉE) ---
+# --- COMPARATEUR MULTI-JOUEUSES AVEC RECHERCHE ET AJOUT CUMULATIF ---
 st.markdown("---")
 st.subheader("⚔️ Outil de Comparaison Directe (jusqu'à 10 joueuses)")
 
-if "joueuses_compare" not in st.session_state:
-    st.session_state.joueuses_compare = df_w["Nom_Joueuse"].tolist()[:2] if len(df_w) >= 2 else []
+all_j_names = df_w["Nom_Joueuse"].tolist()
 
-col_rech_c, col_ref_c = st.columns([1.5, 1])
-with col_rech_c:
-    # Liste complète préservée
-    all_j_names = df_w["Nom_Joueuse"].tolist()
-    # Maintien des joueuses déjà sélectionnées même si on filtre
-    sel_persist = [j for j in st.session_state.joueuses_compare if j in all_j_names]
-    selected_comp = st.multiselect("Sélectionner jusqu'à 10 joueuses (recherche intégrée) :", all_j_names, default=sel_persist, max_selections=10)
-    st.session_state.joueuses_compare = selected_comp
+if "compare_pool" not in st.session_state:
+    st.session_state.compare_pool = all_j_names[:2] if len(all_j_names) >= 2 else []
+
+# Zone de recherche et d'ajout pour le comparateur
+c_rech1, c_rech2, c_btn = st.columns([1.5, 1.5, 0.8])
+with c_rech1:
+    txt_rech_comp = st.text_input("🔍 Rechercher une joueuse par nom/pays :", "", key="rech_comp_input")
+
+with c_rech2:
+    if txt_rech_comp:
+        candidats = [j for j in all_j_names if txt_rech_comp.lower() in j.lower()]
+    else:
+        candidats = all_j_names
+    
+    cand_sel = st.selectbox("Joueuse trouvée :", candidats if candidats else ["Aucun résultat"], key="cand_comp_select")
+
+with c_btn:
+    st.write("")
+    st.write("")
+    if st.button("➕ Ajouter", key="btn_add_player") and cand_sel != "Aucun résultat":
+        if cand_sel not in st.session_state.compare_pool:
+            if len(st.session_state.compare_pool) < 10:
+                st.session_state.compare_pool.append(cand_sel)
+                st.rerun()
+            else:
+                st.warning("Maximum 10 joueuses.")
+
+col_sel_c, col_ref_c = st.columns([2, 1])
+with col_sel_c:
+    valid_pool = [j for j in st.session_state.compare_pool if j in all_j_names]
+    selected_comp = st.multiselect("Joueuses actuellement comparées :", all_j_names, default=valid_pool, max_selections=10, key="multi_comp_key")
+    st.session_state.compare_pool = selected_comp
 
 with col_ref_c:
     ref_choice = st.radio("Ligne de référence :", ["Moyenne Générale", "Top 10", "Top 20"], horizontal=True)
@@ -265,7 +288,6 @@ if selected_comp:
     ang = [n / float(len(cat_comp)) * 2 * np.pi for n in range(len(cat_comp))]
     ang_p = ang + [ang[0]]
 
-    # Taille compacte pour vue directe sans scroll
     fig, ax = plt.subplots(figsize=(5.2, 5.2), subplot_kw=dict(polar=True), facecolor='#0b0f19')
     ax.set_facecolor('#0b0f19')
     ax.set_theta_offset(np.pi / 2)
@@ -317,13 +339,21 @@ if selected_comp:
         df_comp_tab.columns = ["Joueuse", "Pays", "Poste", "Matchs", "Buts (hors 7m)", "7m", "Assists", "Implication", "Contres", "2m"]
         st.dataframe(df_comp_tab, use_container_width=True)
 
-# --- FICHE JOUEUSE AVEC RECHERCHE & DOB PRÉSERVÉ ---
+# --- FICHE JOUEUSE AVEC RECHERCHE RAPIDE ---
 st.markdown("---")
 st.subheader("📋 Fiche Joueuse Complète")
 
-# Recherche intégrée avec selectbox dynamique
-liste_joueuses_fiche = df_w["Nom_Joueuse"].tolist()
-j_sel = st.selectbox("🔍 Rechercher et sélectionner une joueuse :", liste_joueuses_fiche)
+c_rf1, c_rf2 = st.columns([1.5, 2])
+with c_rf1:
+    txt_rech_fiche = st.text_input("🔍 Rechercher une joueuse :", "", key="rech_fiche_input")
+
+with c_rf2:
+    if txt_rech_fiche:
+        options_fiche = [j for j in all_j_names if txt_rech_fiche.lower() in j.lower()]
+    else:
+        options_fiche = all_j_names
+    
+    j_sel = st.selectbox("Sélectionner le profil à afficher :", options_fiche if options_fiche else all_j_names, key="select_fiche_joueuse")
 
 if j_sel:
     rf = df_w[df_w["Nom_Joueuse"] == j_sel].iloc[0]
