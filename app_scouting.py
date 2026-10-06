@@ -233,17 +233,15 @@ else:
 st.subheader(f"🏆 Classement — {secteur_choisi if secteur_choisi != 'Tous' else tri_choisi} ({'Meilleur Ratio %' if 'Efficacité' in mode_tri else 'Plus grand nombre'})")
 st.dataframe(df_display.head(top_n), use_container_width=True)
 
-# --- COMPARATEUR MULTI-JOUEUSES (CALLBACK DIRECT ET SYNCHRONISÉ) ---
+# --- COMPARATEUR MULTI-JOUEUSES SYNCHRONISÉ ---
 st.markdown("---")
 st.subheader("⚔️ Outil de Comparaison Directe (jusqu'à 10 joueuses)")
 
 all_j_names = df_w["Nom_Joueuse"].tolist()
 
-# Initialisation de la clé exacte du multiselect dans session_state
 if "ms_selection_compare" not in st.session_state:
     st.session_state["ms_selection_compare"] = all_j_names[:2] if len(all_j_names) >= 2 else []
 
-# Callbacks agissant directement sur ms_selection_compare
 def callback_ajouter_joueuse():
     choix = st.session_state.get("cand_comp_select", "")
     if choix and choix != "Aucun résultat":
@@ -279,7 +277,6 @@ with c_btn2:
 
 col_sel_c, col_ref_c = st.columns([2, 1])
 with col_sel_c:
-    # Widget multiselect lié directement à la session_state
     selected_comp = st.multiselect(
         "Joueuses actuellement comparées (retirables avec ✕) :",
         all_j_names,
@@ -490,3 +487,119 @@ if j_sel:
         k5, k6 = st.columns(2)
         k5.metric("Tirs Bloqués", f"{int(rf['Tirs_Bloques'])}")
         k6.metric("Sanctions (2m / R)", f"{int(rf['Sanctions_2m'])} / {int(rf['Cartons_Rouges'])}")
+
+# --- MODULE CARTOGRAPHIE DE LA CAGE (GARDIENNES 3x3) ---
+st.markdown("---")
+st.subheader("🥅 Secteurs d'Arrêt Gardiennes — Cartographie 3x3")
+
+@st.cache_data
+def load_cages_data():
+    if not os.path.exists(EXCEL_FILE):
+        return pd.DataFrame()
+    try:
+        return pd.read_excel(EXCEL_FILE, sheet_name="SECTEURS_GARDIENNES").fillna("0/0")
+    except Exception:
+        return pd.DataFrame()
+
+df_cages = load_cages_data()
+
+if df_cages.empty:
+    st.info("Données de secteurs de cage indisponibles. Lance 'importer_matchs.py' pour les générer.")
+else:
+    gks_dispos = sorted(df_cages["Nom_Joueuse"].unique().tolist())
+    
+    c_gks1, c_gks2 = st.columns([1.5, 2])
+    with c_gks1:
+        rech_gk_txt = st.text_input("🔍 Rechercher une gardienne (Nom ou Pays) :", "", key="rech_gk_cage")
+    with c_gks2:
+        if rech_gk_txt:
+            liste_candidats_gk = [g for g in gks_dispos if rech_gk_txt.lower() in g.lower()]
+        else:
+            liste_candidats_gk = gks_dispos
+        gk_selectionnee = st.selectbox("Sélectionner la gardienne :", liste_candidats_gk if liste_candidats_gk else gks_dispos)
+
+    if gk_selectionnee:
+        df_gk = df_cages[df_cages["Nom_Joueuse"] == gk_selectionnee]
+        pays_gk = df_gk["Pays"].iloc[0] if not df_gk.empty else ""
+        
+        zones_cles = [
+            ("Haut_Gauche", "Haut_Centre", "Haut_Droit"),
+            ("Milieu_Gauche", "Milieu_Centre", "Milieu_Droit"),
+            ("Bas_Gauche", "Bas_Centre", "Bas_Droit")
+        ]
+        
+        matrice_stats = []
+        tot_arrets = 0
+        tot_tirs = 0
+
+        for ligne in zones_cles:
+            ligne_stats = []
+            for col_cle in ligne:
+                arr_zone = 0
+                tir_zone = 0
+                for val in df_gk[col_cle]:
+                    m = re.match(r"^(\d+)/(\d+)", str(val).strip())
+                    if m:
+                        arr_zone += int(m.group(1))
+                        tir_zone += int(m.group(2))
+                
+                pct = (arr_zone / tir_zone * 100) if tir_zone > 0 else 0.0
+                tot_arrets += arr_zone
+                tot_tirs += tir_zone
+                ligne_stats.append((arr_zone, tir_zone, pct))
+            matrice_stats.append(ligne_stats)
+
+        pct_global_gk = (tot_arrets / tot_tirs * 100) if tot_tirs > 0 else 0.0
+
+        st.markdown(f"#### **{gk_selectionnee}** — {pays_gk}")
+        st.caption(f"Efficacité globale sur les tirs cadrés : **{tot_arrets}/{tot_tirs} ({pct_global_gk:.1f} %)**")
+
+        fig_cage, ax_c = plt.subplots(figsize=(6.5, 4.5), facecolor='#0b0f19')
+        ax_c.set_facecolor('#0b0f19')
+
+        for r_idx in range(3):
+            for c_idx in range(3):
+                arr, tir, p = matrice_stats[r_idx][c_idx]
+                
+                if tir == 0:
+                    bg_color = '#1e293b'
+                elif p >= 40:
+                    bg_color = '#065f46'
+                elif p >= 25:
+                    bg_color = '#0e7490'
+                elif p >= 15:
+                    bg_color = '#b45309'
+                else:
+                    bg_color = '#991b1b'
+
+                rect = plt.Rectangle((c_idx, 2 - r_idx), 1, 1, facecolor=bg_color, edgecolor='#f8fafc', linewidth=2, alpha=0.85)
+                ax_c.add_patch(rect)
+
+                ax_c.text(c_idx + 0.5, 2 - r_idx + 0.62, f"{arr}/{tir}", color='white', fontsize=12, fontweight='bold', ha='center', va='center')
+                ax_c.text(c_idx + 0.5, 2 - r_idx + 0.38, f"{p:.1f} %", color='#fef08a' if p >= 30 else '#e2e8f0', fontsize=10.5, fontweight='bold', ha='center', va='center')
+
+        cadre_exterieur = plt.Rectangle((0, 0), 3, 3, fill=False, edgecolor='#ef4444', linewidth=6)
+        ax_c.add_patch(cadre_exterieur)
+
+        ax_c.set_xlim(-0.1, 3.1)
+        ax_c.set_ylim(-0.1, 3.1)
+        ax_c.axis('off')
+
+        c_view1, c_view2 = st.columns([1.3, 1])
+        with c_view1:
+            st.pyplot(fig_cage)
+        with c_view2:
+            st.markdown("##### 📌 Légende & Performance par Hauteur")
+            
+            haut_arr = sum(matrice_stats[0][i][0] for i in range(3))
+            haut_tir = sum(matrice_stats[0][i][1] for i in range(3))
+            
+            mil_arr = sum(matrice_stats[1][i][0] for i in range(3))
+            mil_tir = sum(matrice_stats[1][i][1] for i in range(3))
+            
+            bas_arr = sum(matrice_stats[2][i][0] for i in range(3))
+            bas_tir = sum(matrice_stats[2][i][1] for i in range(3))
+
+            st.metric("Secteur Haut (Lucarnes / Tête)", f"{haut_arr}/{haut_tir}", f"{(haut_arr/haut_tir*100) if haut_tir>0 else 0:.1f} %")
+            st.metric("Secteur Milieu (Hanches / Rebonds)", f"{mil_arr}/{mil_tir}", f"{(mil_arr/mil_tir*100) if mil_tir>0 else 0:.1f} %")
+            st.metric("Secteur Bas (Pieds)", f"{bas_arr}/{bas_tir}", f"{(bas_arr/bas_tir*100) if bas_tir>0 else 0:.1f} %")
