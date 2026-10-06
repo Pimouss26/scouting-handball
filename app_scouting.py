@@ -488,22 +488,24 @@ if j_sel:
         k5.metric("Tirs Bloqués", f"{int(rf['Tirs_Bloques'])}")
         k6.metric("Sanctions (2m / R)", f"{int(rf['Sanctions_2m'])} / {int(rf['Cartons_Rouges'])}")
 
-# --- MODULE CARTOGRAPHIE DE LA CAGE (GARDIENNES 3x3) ---
+# --- MODULE CARTOGRAPHIE DE LA CAGE (GARDIENNES 3x3) SANS CACHE BLOQUANT ---
 st.markdown("---")
 st.subheader("🥅 Secteurs d'Arrêt Gardiennes — Cartographie 3x3")
 
-@st.cache_data
 def load_cages_data():
     if not os.path.exists(EXCEL_FILE):
-        return pd.DataFrame()
+        return pd.DataFrame(), f"Le fichier '{EXCEL_FILE}' est introuvable."
     try:
-        return pd.read_excel(EXCEL_FILE, sheet_name="SECTEURS_GARDIENNES").fillna("0/0")
-    except Exception:
-        return pd.DataFrame()
+        df_c = pd.read_excel(EXCEL_FILE, sheet_name="SECTEURS_GARDIENNES").fillna("0/0")
+        return df_c, None
+    except Exception as e:
+        return pd.DataFrame(), f"Erreur de lecture de l'onglet SECTEURS_GARDIENNES : {e}"
 
-df_cages = load_cages_data()
+df_cages, err_cages = load_cages_data()
 
-if df_cages.empty:
+if err_cages:
+    st.error(f"⚠️ {err_cages}")
+elif df_cages.empty:
     st.info("Données de secteurs de cage indisponibles. Lance 'importer_matchs.py' pour les générer.")
 else:
     gks_dispos = sorted(df_cages["Nom_Joueuse"].unique().tolist())
