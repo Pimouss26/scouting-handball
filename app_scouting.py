@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
-st.set_page_config(page_title="Hub Scouting Handball U18", page_icon="🤾‍♀️", layout="wide")
+st.set_page_config(page_title="Hub Scouting Handball U18", page_icon="🤾‍♀️️", layout="wide")
 
 EXCEL_FILE = "data_handball.xlsx"
 
@@ -488,7 +488,7 @@ if j_sel:
         k5.metric("Tirs Bloqués", f"{int(rf['Tirs_Bloques'])}")
         k6.metric("Sanctions (2m / R)", f"{int(rf['Sanctions_2m'])} / {int(rf['Cartons_Rouges'])}")
 
-# --- MODULE CARTOGRAPHIE DE LA CAGE (GARDIENNES 3x3) SANS CACHE BLOQUANT ---
+# --- MODULE CARTOGRAPHIE DE LA CAGE (GARDIENNES 3x3) ---
 st.markdown("---")
 st.subheader("🥅 Secteurs d'Arrêt Gardiennes — Cartographie 3x3")
 
@@ -508,21 +508,38 @@ if err_cages:
 elif df_cages.empty:
     st.info("Données de secteurs de cage indisponibles. Lance 'importer_matchs.py' pour les générer.")
 else:
-    gks_dispos = sorted(df_cages["Nom_Joueuse"].unique().tolist())
+    # Récupérer les couples uniques (Nom, Pays)
+    df_paires = df_cages[["Nom_Joueuse", "Pays"]].drop_duplicates().sort_values(by=["Pays", "Nom_Joueuse"])
     
     c_gks1, c_gks2 = st.columns([1.5, 2])
     with c_gks1:
         rech_gk_txt = st.text_input("🔍 Rechercher une gardienne (Nom ou Pays) :", "", key="rech_gk_cage")
+    
     with c_gks2:
         if rech_gk_txt:
-            liste_candidats_gk = [g for g in gks_dispos if rech_gk_txt.lower() in g.lower()]
+            term = rech_gk_txt.strip().lower()
+            df_filtre = df_paires[
+                df_paires["Nom_Joueuse"].astype(str).str.lower().str.contains(term) | 
+                df_paires["Pays"].astype(str).str.lower().str.contains(term)
+            ]
         else:
-            liste_candidats_gk = gks_dispos
-        gk_selectionnee = st.selectbox("Sélectionner la gardienne :", liste_candidats_gk if liste_candidats_gk else gks_dispos)
+            df_filtre = df_paires
 
-    if gk_selectionnee:
-        df_gk = df_cages[df_cages["Nom_Joueuse"] == gk_selectionnee]
-        pays_gk = df_gk["Pays"].iloc[0] if not df_gk.empty else ""
+        # Construire les options affichées : "Nom (Pays)"
+        options_gk = [f"{row['Nom_Joueuse']} ({row['Pays']})" for _, row in df_filtre.iterrows()]
+        
+        if not options_gk:
+            st.warning("Aucune gardienne trouvée pour cette recherche.")
+            gk_selectionnee_label = None
+        else:
+            gk_selectionnee_label = st.selectbox("Sélectionner la gardienne :", options_gk)
+
+    if gk_selectionnee_label:
+        # Extraire le nom et le pays de la joueuse sélectionnée
+        nom_gk_choisi = gk_selectionnee_label.rsplit(" (", 1)[0]
+        pays_gk_choisi = gk_selectionnee_label.rsplit(" (", 1)[1].rstrip(")")
+
+        df_gk = df_cages[(df_cages["Nom_Joueuse"] == nom_gk_choisi) & (df_cages["Pays"] == pays_gk_choisi)]
         
         zones_cles = [
             ("Haut_Gauche", "Haut_Centre", "Haut_Droit"),
@@ -553,7 +570,7 @@ else:
 
         pct_global_gk = (tot_arrets / tot_tirs * 100) if tot_tirs > 0 else 0.0
 
-        st.markdown(f"#### **{gk_selectionnee}** — {pays_gk}")
+        st.markdown(f"#### **{nom_gk_choisi}** — {pays_gk_choisi}")
         st.caption(f"Efficacité globale sur les tirs cadrés : **{tot_arrets}/{tot_tirs} ({pct_global_gk:.1f} %)**")
 
         fig_cage, ax_c = plt.subplots(figsize=(6.5, 4.5), facecolor='#0b0f19')
