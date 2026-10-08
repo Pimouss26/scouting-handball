@@ -7,21 +7,92 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
-st.set_page_config(page_title="Hub Scouting Handball U18", page_icon="🤾‍♀️", layout="wide")
+st.set_page_config(page_title="Centre de Base de Données BBH", page_icon="🤾‍♀️", layout="wide")
 
-EXCEL_FILE = "data_handball.xlsx"
+# --- GESTION DE LA NAVIGATION ---
+if "competition_active" not in st.session_state:
+    st.session_state["competition_active"] = None
 
+# --- PAGE D'ACCUEIL / PORTAIL BBH ---
+if st.session_state["competition_active"] is None:
+    st.markdown("<h1 style='text-align: center; margin-bottom: 5px;'>⚫⚪ Centre de Base de Données BBH</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; color: #94a3b8; font-size: 1.15rem; margin-bottom: 35px;'>Plateforme Centrale de Performance & Détection — Brest Bretagne Handball</p>", unsafe_allow_html=True)
+    st.markdown("---")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("### 🌍 Sélections Nationales Jeunes")
+        st.info("**Championnat du Monde U18**\n\nBase complète IHF : stats individuelles, tirs par secteur et cartographie 3x3 des gardiennes.")
+        if st.button("Accéder à la base U18 ➔", key="btn_u18", use_container_width=True):
+            st.session_state["competition_active"] = "U18"
+            st.rerun()
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        st.markdown("### 🏆 Coupes d'Europe (EHF)")
+        st.info("**EHF Champions League**\n\nDonnées officielles EHF OMS : performance européenne, temps de jeu et efficacité au tir.")
+        if st.button("Accéder à l'EHF Champions League ➔", key="btn_cl", use_container_width=True):
+            st.session_state["competition_active"] = "EHF CL"
+            st.rerun()
+
+    with col2:
+        st.markdown("### 🇫🇷 Championnat de France")
+        st.info("**Ligue Butagaz Énergie (LBE)**\n\nBase officielle FFHB : statistiques de match régulières, arrêts gardiennes et sanctions.")
+        if st.button("Accéder à la base LBE ➔", key="btn_lbe", use_container_width=True):
+            st.session_state["competition_active"] = "LBE"
+            st.rerun()
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        st.markdown("### 🇪🇺 European League")
+        st.info("**EHF European League**\n\nRapports EHF OMS : suivi de la seconde coupe d'Europe et profils émergents.")
+        if st.button("Accéder à l'EHF European League ➔", key="btn_el", use_container_width=True):
+            st.session_state["competition_active"] = "EHF EL"
+            st.rerun()
+
+    st.stop()
+
+# --- CONFIGURATION DU FICHIER SELON LA COMPÉTITION ---
+comp_active = st.session_state["competition_active"]
+
+config_fichiers = {
+    "U18": {"excel": "data_u18.xlsx", "titre": "Championnat du Monde U18", "has_3x3": True},
+    "LBE": {"excel": "data_lbe.xlsx", "titre": "Ligue Butagaz Énergie", "has_3x3": False},
+    "EHF CL": {"excel": "data_ehf_cl.xlsx", "titre": "EHF Champions League", "has_3x3": False},
+    "EHF EL": {"excel": "data_ehf_el.xlsx", "titre": "EHF European League", "has_3x3": False}
+}
+
+info_comp = config_fichiers[comp_active]
+EXCEL_FILE = info_comp["excel"]
+
+# Si le fichier data_u18.xlsx n'a pas encore été renommé, repli sur data_handball.xlsx
+if comp_active == "U18" and not os.path.exists(EXCEL_FILE) and os.path.exists("data_handball.xlsx"):
+    EXCEL_FILE = "data_handball.xlsx"
+
+# Bouton de retour dans la barre latérale
+if st.sidebar.button("⬅️ Retour au Centre BBH", use_container_width=True):
+    st.session_state["competition_active"] = None
+    st.rerun()
+
+st.sidebar.markdown(f"**Compétition :** `{info_comp['titre']}`")
+st.sidebar.markdown("---")
+
+if not os.path.exists(EXCEL_FILE):
+    st.title(f"🤾‍♀️ {info_comp['titre']}")
+    st.warning(f"Le fichier `{EXCEL_FILE}` n'est pas encore présent sur le serveur.")
+    st.info("Dépose le fichier Excel correspondant sur GitHub pour activer la consultation.")
+    st.stop()
+
+# --- CHARGEMENT DES DONNÉES ---
 @st.cache_data
-def load_data():
-    if not os.path.exists(EXCEL_FILE):
-        return pd.DataFrame(), pd.DataFrame()
-    
-    df_raw = pd.read_excel(EXCEL_FILE, sheet_name="DATA_MATCHS").fillna(0)
+def load_data(fichier):
+    df_raw = pd.read_excel(fichier, sheet_name="DATA_MATCHS").fillna(0)
     
     colonnes_requises = {
-        "Nom_Joueuse": "Inconnu", "Competition": "Championnat du monde U18", "Type_Poste": "CHAMP",
+        "Nom_Joueuse": "Inconnu", "Competition": info_comp["titre"], "Type_Poste": "CHAMP",
         "Poste_Precis": "Non renseigné", "Pays": "Inconnu", "DOB": "-", "Age": 0, "Club": "Non renseigné",
-        "Taille": 0, "Min_Jouees": 20, "Titulaire": 0, "Poule_Niveau": "Poule Haute", "Phase": "-",
+        "Taille": 0, "Min_Jouees": 20, "Titulaire": 0, "Poule_Niveau": "Phase Régulière", "Phase": "-",
         "Adversaire": "Adversaire", "Resultat": "W",
         "Buts_Sans_7m": 0, "Buts_Totaux": 0, "Tirs_Totaux": 0,
         "Buts_6m": 0, "Tirs_6m": 0, "Buts_9m": 0, "Tirs_9m": 0,
@@ -132,7 +203,6 @@ def load_data():
     df_grouped["Impl_PM"] = (df_grouped["Implication"] / df_grouped["Matchs_Joues"]).round(1)
     df_grouped["Arrets_PM"] = (df_grouped["Arrets_Totaux"] / df_grouped["Matchs_Joues"]).round(1)
 
-    # Extraction de l'année de naissance depuis la date de naissance (DOB)
     def extraire_annee(val_dob):
         s = str(val_dob).strip()
         if len(s) >= 4 and s[-4:].isdigit():
@@ -143,29 +213,35 @@ def load_data():
 
     return df_raw, df_grouped
 
-df_raw, df = load_data()
+df_raw, df = load_data(EXCEL_FILE)
 
-st.title("🤾‍♀️ Hub de Détection & Scouting Handball U18")
+st.title(f"🤾‍♀️ Hub Scouting — {info_comp['titre']}")
 
 if df.empty:
-    st.warning("Données indisponibles.")
+    st.warning("Aucune donnée disponible.")
     st.stop()
 
 # --- FILTRES LATÉRAUX ---
 st.sidebar.header("🎯 Filtres de Recherche")
+label_equipe = "Équipe / Club" if comp_active == "LBE" else "Pays / Sélections"
 all_pays = sorted([p for p in df["Pays"].unique() if str(p) not in ["0", "Inconnu", "0.0"]])
-selected_pays = st.sidebar.multiselect("Pays / Sélections", all_pays, default=[])
+selected_pays = st.sidebar.multiselect(label_equipe, all_pays, default=[])
 
-# Nouveau filtre par année de naissance (multi-sélection)
-annees_dispos = sorted([int(a) for a in df["Annee_Naissance"].dropna().unique() if a > 1990])
-selected_annees = st.sidebar.multiselect("Année(s) de naissance", annees_dispos, default=[])
+# Filtre par Année de naissance (affiché si disponible)
+annees_dispos = sorted([int(a) for a in df["Annee_Naissance"].dropna().unique() if a > 1980])
+if annees_dispos:
+    selected_annees = st.sidebar.multiselect("Année(s) de naissance", annees_dispos, default=[])
+else:
+    selected_annees = []
 
-poule_filter = st.sidebar.selectbox("Tableau", ["Toutes", "Poule Haute (Main Round / Finales)", "Poule Basse (President's Cup)"])
+poule_filter = st.sidebar.selectbox("Phase / Tableau", ["Toutes", "Poule Haute (Main Round / Finales)", "Poule Basse (President's Cup)"])
 type_poste_sel = st.sidebar.selectbox("Catégorie de Poste", ["Tous", "CHAMP", "GARDIENNE"])
 
 postes_uniques = sorted([p for p in df["Poste_Precis"].unique() if str(p) not in ["Non renseigné", "0", "0.0"]])
 selected_postes = st.sidebar.multiselect("Poste(s) précis", postes_uniques, default=[])
-min_matchs = st.sidebar.slider("Matchs joués min.", 1, int(df["Matchs_Joues"].max()) if not df.empty else 8, 3)
+
+max_m = int(df["Matchs_Joues"].max()) if not df.empty else 1
+min_matchs = st.sidebar.slider("Matchs joués min.", 1, max(max_m, 1), 1)
 
 df_w = df.copy()
 if poule_filter != "Toutes":
@@ -190,7 +266,10 @@ if type_poste_sel == "GARDIENNE":
     criteres = {"Arrêts Totaux": ("Arrets_Totaux", "Pct_Arrets_Totaux"), "Arrêts / Match": ("Arrets_PM", "Pct_Arrets_Totaux"), "Relances (Passes D)": ("Passes_D", "Passes_D")}
     tri_choisi = st.sidebar.selectbox("Classer par", list(criteres.keys()))
     
-    secteur_choisi = st.sidebar.selectbox("🎯 Secteur d'arrêt prioritaire", ["Tous", "Arrêts 6m", "Arrêts 9m", "Arrêts Wing", "Arrêts 7m", "Arrêts FB (Contre-attaque)", "Arrêts Brk (Percée)", "Arrêts LD (Cage vide)"])
+    if info_comp["has_3x3"]:
+        secteur_choisi = st.sidebar.selectbox("🎯 Secteur d'arrêt prioritaire", ["Tous", "Arrêts 6m", "Arrêts 9m", "Arrêts Wing", "Arrêts 7m", "Arrêts FB (Contre-attaque)", "Arrêts Brk (Percée)", "Arrêts LD (Cage vide)"])
+    else:
+        secteur_choisi = "Tous"
     
     mapping_secteurs = {
         "Arrêts 6m": ("Arrets_6m", "Pct_Arr_6m", "Stat_Arr_6m", "Arrêts 6m (Ratio %)"),
@@ -205,7 +284,10 @@ else:
     criteres = {"Buts (Hors 7m)": ("Buts", "Pct_Hors_7m"), "Buts par Match": ("Buts_PM", "Pct_Hors_7m"), "Implication Totale": ("Implication", "Implication"), "Buts sur 7m": ("Buts_7m", "Pct_7m"), "Assists": ("Passes_D", "Passes_D")}
     tri_choisi = st.sidebar.selectbox("Classer par", list(criteres.keys()))
     
-    secteur_choisi = st.sidebar.selectbox("🎯 Secteur de tir prioritaire", ["Tous", "Secteur 6m", "Secteur 9m", "Secteur Wing (Ailes)", "Secteur 7m", "Contre-attaque (FB)", "Percée (Brk)", "Buts Cage Vide (LD)"])
+    if info_comp["has_3x3"]:
+        secteur_choisi = st.sidebar.selectbox("🎯 Secteur de tir prioritaire", ["Tous", "Secteur 6m", "Secteur 9m", "Secteur Wing (Ailes)", "Secteur 7m", "Contre-attaque (FB)", "Percée (Brk)", "Buts Cage Vide (LD)"])
+    else:
+        secteur_choisi = "Tous"
     
     mapping_secteurs = {
         "Secteur 6m": ("Buts_6m", "Pct_6m", "Stat_6m", "Buts 6m (Ratio %)"),
@@ -249,7 +331,7 @@ else:
 st.subheader(f"🏆 Classement — {secteur_choisi if secteur_choisi != 'Tous' else tri_choisi} ({'Meilleur Ratio %' if 'Efficacité' in mode_tri else 'Plus grand nombre'})")
 st.dataframe(df_display.head(top_n), use_container_width=True)
 
-# --- COMPARATEUR MULTI-JOUEUSES SYNCHRONISÉ ---
+# --- COMPARATEUR MULTI-JOUEUSES ---
 st.markdown("---")
 st.subheader("⚔️ Outil de Comparaison Directe (jusqu'à 10 joueuses)")
 
@@ -294,7 +376,7 @@ with c_btn2:
 col_sel_c, col_ref_c = st.columns([2, 1])
 with col_sel_c:
     selected_comp = st.multiselect(
-        "Joueuses actuellement comparées (retirables avec ✕) :",
+        "Joueuses actuellement comparées :",
         all_j_names,
         key="ms_selection_compare",
         max_selections=10
@@ -310,8 +392,10 @@ if selected_comp:
     
     max_val = max(max(val_ref), 1)
     for j in selected_comp:
-        rj = df_w[df_w["Nom_Joueuse"] == j].iloc[0]
-        max_val = max(max_val, rj['Passes_D'], rj['Buts'], rj['Buts_7m'], rj['Tirs_Bloques'], rj['Implication'])
+        sub_j = df_w[df_w["Nom_Joueuse"] == j]
+        if not sub_j.empty:
+            rj = sub_j.iloc[0]
+            max_val = max(max_val, rj['Passes_D'], rj['Buts'], rj['Buts_7m'], rj['Tirs_Bloques'], rj['Implication'])
 
     ang = [n / float(len(cat_comp)) * 2 * np.pi for n in range(len(cat_comp))]
     ang_p = ang + [ang[0]]
@@ -329,34 +413,18 @@ if selected_comp:
     ax.plot(ang_p, va_p, linewidth=1.8, linestyle='--', color='#94a3b8', label=f"{ref_choice}")
     ax.scatter(ang, va_p[:-1], color='#94a3b8', s=30, zorder=4)
 
-    for a_pos, v_ref_num, r_pos in zip(ang, val_ref, va_p[:-1]):
-        ax.text(
-            a_pos, max(r_pos - 8.0, 5.0), f"{v_ref_num:.1f}",
-            color='#cbd5e1', fontsize=7.5, fontweight='bold', ha='center', va='center',
-            bbox=dict(boxstyle='round,pad=0.15', facecolor='#0f172a', edgecolor='#475569', alpha=0.95),
-            zorder=6
-        )
-
     pal = ['#22c55e', '#38bdf8', '#f59e0b', '#ec4899', '#a855f7', '#14b8a6', '#f43f5e', '#84cc16', '#eab308', '#6366f1']
     
     for i, j_nom in enumerate(selected_comp):
-        rj = df_w[df_w["Nom_Joueuse"] == j_nom].iloc[0]
+        sub_j = df_w[df_w["Nom_Joueuse"] == j_nom]
+        if sub_j.empty:
+            continue
+        rj = sub_j.iloc[0]
         raw_vals = [rj['Passes_D'], rj['Buts'], rj['Buts_7m'], rj['Tirs_Bloques'], rj['Implication']]
         v_plot = [(v / max_val) * 70 + 18 for v in raw_vals]
         col = pal[i % len(pal)]
         ax.plot(ang_p, v_plot + [v_plot[0]], linewidth=2.0, color=col, label=f"{j_nom} ({rj['Pays']})")
         ax.scatter(ang, v_plot, color=col, s=30, zorder=5)
-
-        ang_shift = (i - (len(selected_comp) - 1) / 2.0) * 0.05
-        for a_base, val_num, rad_pos in zip(ang, raw_vals, v_plot):
-            a_pos = a_base + ang_shift
-            r_label = rad_pos + 6.5 + (i % 2) * 5.0
-            ax.text(
-                a_pos, r_label, f"{int(val_num)}",
-                color=col, fontsize=7.0, fontweight='bold', ha='center', va='center',
-                bbox=dict(boxstyle='round,pad=0.12', facecolor='#0b0f19', edgecolor=col, alpha=0.92, linewidth=0.5),
-                zorder=10
-            )
 
     col_chart, col_leg_tab = st.columns([1.1, 1.2])
     with col_chart:
@@ -364,10 +432,10 @@ if selected_comp:
     with col_leg_tab:
         st.markdown("##### 🔢 Tableau Comparatif Direct")
         df_comp_tab = df_w[df_w["Nom_Joueuse"].isin(selected_comp)][["Nom_Joueuse", "Pays", "Poste_Precis", "Matchs_Joues", "Stat_Buts_Hors_7m", "Stat_7m", "Passes_D", "Implication", "Tirs_Bloques", "Sanctions_2m"]].reset_index(drop=True)
-        df_comp_tab.columns = ["Joueuse", "Pays", "Poste", "Matchs", "Buts (hors 7m)", "7m", "Assists", "Implication", "Contres", "2m"]
+        df_comp_tab.columns = ["Joueuse", label_equipe, "Poste", "Matchs", "Buts (hors 7m)", "7m", "Assists", "Implication", "Contres", "2m"]
         st.dataframe(df_comp_tab, use_container_width=True)
 
-# --- FICHE JOUEUSE AVEC RECHERCHE FLUIDE ---
+# --- FICHE JOUEUSE ---
 st.markdown("---")
 st.subheader("📋 Fiche Joueuse Complète")
 
@@ -384,254 +452,176 @@ with c_rf2:
     j_sel = st.selectbox("Sélectionner le profil à afficher :", options_fiche if options_fiche else all_j_names, key="select_fiche_joueuse")
 
 if j_sel:
-    rf = df_w[df_w["Nom_Joueuse"] == j_sel].iloc[0]
-    
-    raw_sub = df_raw[df_raw["Nom_Joueuse"] == j_sel]
-    dob_cands = [str(d).strip() for d in raw_sub["DOB"] if str(d).strip() not in ["0", "0.0", "nan", "-", "None", ""]]
-    dob_raw = dob_cands[0] if dob_cands else (str(rf["DOB"]).strip() if str(rf["DOB"]).strip() not in ["0", "0.0", "nan", "-", "None", ""] else "")
-    
-    age_val = int(rf['Age']) if rf['Age'] > 0 else 0
-    
-    if dob_raw and age_val > 0:
-        age_str = f"{age_val} ans (DOB: {dob_raw})"
-    elif dob_raw:
-        age_str = f"DOB: {dob_raw}"
-    elif age_val > 0:
-        age_str = f"{age_val} ans"
-    else:
-        age_str = "Âge / DOB N/A"
+    sub_rf = df_w[df_w["Nom_Joueuse"] == j_sel]
+    if not sub_rf.empty:
+        rf = sub_rf.iloc[0]
+        raw_sub = df_raw[df_raw["Nom_Joueuse"] == j_sel]
+        dob_cands = [str(d).strip() for d in raw_sub["DOB"] if str(d).strip() not in ["0", "0.0", "nan", "-", "None", ""]]
+        dob_raw = dob_cands[0] if dob_cands else (str(rf["DOB"]).strip() if str(rf["DOB"]).strip() not in ["0", "0.0", "nan", "-", "None", ""] else "")
+        
+        age_val = int(rf['Age']) if rf['Age'] > 0 else 0
+        if dob_raw and age_val > 0:
+            age_str = f"{age_val} ans (DOB: {dob_raw})"
+        elif dob_raw:
+            age_str = f"DOB: {dob_raw}"
+        elif age_val > 0:
+            age_str = f"{age_val} ans"
+        else:
+            age_str = "Âge / DOB N/A"
 
-    taille_txt = f"{int(rf['Taille'])} cm" if rf['Taille'] > 0 else "Taille N/A"
-    
-    st.markdown(f"### **{j_sel}** — {rf['Pays']}")
-    st.markdown(f"**Poste :** `{rf['Poste_Precis']}` | **Club :** `{rf['Club']}` | **Physique & Âge :** `{taille_txt} — {age_str}`")
+        taille_txt = f"{int(rf['Taille'])} cm" if rf['Taille'] > 0 else "Taille N/A"
+        
+        st.markdown(f"### **{j_sel}** — {rf['Pays']}")
+        st.markdown(f"**Poste :** `{rf['Poste_Precis']}` | **Club :** `{rf['Club']}` | **Physique & Âge :** `{taille_txt} — {age_str}`")
 
-    st.markdown("#### 📅 Parcours Chronologique")
-    m_player = raw_sub.copy()
+        st.markdown("#### 📅 Parcours Match par Match")
+        m_player = raw_sub.copy()
 
-    def score_chronologique(phase_str):
-        p = str(phase_str)
-        if "Prelim" in p or "Preliminary" in p:
-            m_r = re.search(r"(\d+)\.\s*round", p, re.I)
-            r_num = int(m_r.group(1)) if m_r else 1
-            return 10 + r_num
-        elif "Main Round" in p or "President" in p:
-            m_r = re.search(r"(\d+)\.\s*round", p, re.I)
-            r_num = int(m_r.group(1)) if m_r else 1
-            return 20 + r_num
-        elif "Quarter" in p:
-            return 30
-        elif "Semi" in p:
-            return 40
-        elif "Final" in p or "place" in p or "Placement" in p:
-            return 50
-        return 99
+        cols_m = st.columns(max(len(m_player), 1))
+        for idx_m, (_, r_m) in enumerate(m_player.iterrows()):
+            with cols_m[idx_m]:
+                badge = "🟢 W" if r_m["Resultat"] == "W" else ("🟡 D" if r_m["Resultat"] == "D" else "🔴 L")
+                st.caption(f"**{r_m['Phase']}**")
+                st.write(f"vs **{r_m['Adversaire']}**")
+                st.write(badge)
+                st.caption(f"{r_m['Buts_Totaux']} buts | {r_m['Min_Jouees']} min")
 
-    m_player["Chrono_Score"] = m_player["Phase"].apply(score_chronologique)
-    m_player = m_player.sort_values(by="Chrono_Score")
-
-    def formater_tour(phase_raw):
-        p = str(phase_raw)
-        p = p.replace("Preliminary Round - ", "Prelim. ")
-        p = p.replace("President's Cup - ", "Pres. Cup ")
-        p = p.replace("President Cup - ", "Pres. Cup ")
-        p = p.replace("Quarter-final", "1/4 Finale")
-        p = p.replace("Quarterfinals", "1/4 Finale")
-        p = p.replace("Semi-final", "1/2 Finale")
-        p = p.replace("Semifinals", "1/2 Finale")
-        p = p.replace("Final Round, ", "")
-        p = p.replace("Final Round - ", "")
-        return p.strip()
-
-    cols_m = st.columns(max(len(m_player), 1))
-    for idx_m, (_, r_m) in enumerate(m_player.iterrows()):
-        with cols_m[idx_m]:
-            tour_label = formater_tour(r_m["Phase"])
-            badge = "🟢 W" if r_m["Resultat"] == "W" else ("🟡 D" if r_m["Resultat"] == "D" else "🔴 L")
-            st.caption(f"**{tour_label}**")
-            st.write(f"vs **{r_m['Adversaire']}**")
-            st.write(badge)
-            st.caption(f"{r_m['Buts_Totaux']} buts | {r_m['Min_Jouees']} min")
-
-    st.markdown("#### 📊 Analyse Graphique & Indicateurs")
-    
-    cat_ind = ['Assists', 'Buts', 'Sanctions (2m)', 'Tirs Bloqués', 'Implication']
-    avg_ind = [df_w['Passes_D'].mean(), df_w['Buts'].mean(), df_w['Sanctions_2m'].mean(), df_w['Tirs_Bloques'].mean(), df_w['Implication'].mean()]
-    val_ind = [rf['Passes_D'], rf['Buts'], rf['Sanctions_2m'], rf['Tirs_Bloques'], rf['Implication']]
-    
-    m_ind = max(max(val_ind), max(avg_ind), 1)
-    vp_i = [(v / m_ind) * 60 + 18 for v in val_ind]
-    va_i = [(v / m_ind) * 60 + 18 for v in avg_ind]
-    ang_i = [n / float(len(cat_ind)) * 2 * np.pi for n in range(len(cat_ind))]
-
-    fig_ind, ax_i = plt.subplots(figsize=(4.8, 4.8), subplot_kw=dict(polar=True), facecolor='#0b0f19')
-    ax_i.set_facecolor('#0b0f19')
-    ax_i.set_theta_offset(np.pi / 2)
-    ax_i.set_theta_direction(-1)
-    plt.xticks(ang_i, cat_ind, color='#f8fafc', size=9.5, fontweight='bold')
-    plt.yticks([], [])
-    plt.ylim(0, 120)
-    ax_i.grid(color='#1e293b', linestyle='--', linewidth=0.8)
-
-    ax_i.plot(ang_i + [ang_i[0]], va_i + [va_i[0]], linewidth=1.8, linestyle='--', color='#94a3b8', label=f"Moyenne ({rf['Competition']})")
-    ax_i.fill(ang_i + [ang_i[0]], va_i + [va_i[0]], color='#94a3b8', alpha=0.10)
-    ax_i.scatter(ang_i, va_i, color='#94a3b8', s=25)
-
-    ax_i.plot(ang_i + [ang_i[0]], vp_i + [vp_i[0]], linewidth=2.5, color='#22c55e', label=j_sel)
-    ax_i.fill(ang_i + [ang_i[0]], vp_i + [vp_i[0]], color='#22c55e', alpha=0.25)
-    ax_i.scatter(ang_i, vp_i, color='#22c55e', s=45)
-
-    for a_pos, v_p, v_a, r_p, r_a in zip(ang_i, val_ind, avg_ind, vp_i, va_i):
-        ax_i.text(a_pos, r_p + 9, f"{int(v_p)}", color='#22c55e', fontsize=8.0, fontweight='bold', ha='center', va='center', bbox=dict(boxstyle='round,pad=0.2', facecolor='#0b0f19', edgecolor='#22c55e', alpha=0.85))
-        ax_i.text(a_pos, max(r_a - 9, 4), f"{v_a:.1f}", color='#cbd5e1', fontsize=7.0, ha='center', va='center', bbox=dict(boxstyle='round,pad=0.2', facecolor='#0b0f19', edgecolor='#475569', alpha=0.80))
-
-    ax_i.legend(loc='upper center', bbox_to_anchor=(0.5, -0.12), ncol=2, facecolor='#151c2c', edgecolor='#334155', labelcolor='white')
-
-    col_g, col_k = st.columns([1.1, 1.2])
-    with col_g:
-        st.pyplot(fig_ind)
-    with col_k:
-        st.markdown(f"### 📌 KPIs — {j_sel}")
-        k1, k2 = st.columns(2)
+        st.markdown("#### 📊 Indicateurs & KPIs")
+        k1, k2, k3, k4 = st.columns(4)
         k1.metric("Buts (Hors 7m)", rf["Stat_Buts_Hors_7m"], f"{rf['Buts_PM']} / match")
         k2.metric("Secteur 7m", rf["Stat_7m"])
-        
-        k3, k4 = st.columns(2)
         k3.metric("Assists", f"{int(rf['Passes_D'])}", f"{rf['PassesD_PM']} / match")
         k4.metric("Implication", f"{int(rf['Implication'])}", f"{rf['Impl_PM']} / match")
 
-        k5, k6 = st.columns(2)
-        k5.metric("Tirs Bloqués", f"{int(rf['Tirs_Bloques'])}")
-        k6.metric("Sanctions (2m / R)", f"{int(rf['Sanctions_2m'])} / {int(rf['Cartons_Rouges'])}")
+# --- MODULE CAGE 3x3 (Uniquement si disponible pour la compétition) ---
+if info_comp["has_3x3"]:
+    st.markdown("---")
+    st.subheader("🥅 Secteurs d'Arrêt Gardiennes — Cartographie 3x3")
 
-# --- MODULE CARTOGRAPHIE DE LA CAGE (GARDIENNES 3x3) ---
-st.markdown("---")
-st.subheader("🥅 Secteurs d'Arrêt Gardiennes — Cartographie 3x3")
+    def load_cages_data(fichier):
+        if not os.path.exists(fichier):
+            return pd.DataFrame(), f"Le fichier '{fichier}' est introuvable."
+        try:
+            df_c = pd.read_excel(fichier, sheet_name="SECTEURS_GARDIENNES").fillna("0/0")
+            return df_c, None
+        except Exception as e:
+            return pd.DataFrame(), f"Erreur de lecture de l'onglet SECTEURS_GARDIENNES : {e}"
 
-def load_cages_data():
-    if not os.path.exists(EXCEL_FILE):
-        return pd.DataFrame(), f"Le fichier '{EXCEL_FILE}' est introuvable."
-    try:
-        df_c = pd.read_excel(EXCEL_FILE, sheet_name="SECTEURS_GARDIENNES").fillna("0/0")
-        return df_c, None
-    except Exception as e:
-        return pd.DataFrame(), f"Erreur de lecture de l'onglet SECTEURS_GARDIENNES : {e}"
+    df_cages, err_cages = load_cages_data(EXCEL_FILE)
 
-df_cages, err_cages = load_cages_data()
+    if err_cages:
+        st.error(f"⚠️ {err_cages}")
+    elif df_cages.empty:
+        st.info("Données de secteurs de cage indisponibles.")
+    else:
+        df_paires = df_cages[["Nom_Joueuse", "Pays"]].drop_duplicates().sort_values(by=["Pays", "Nom_Joueuse"])
+        
+        c_gks1, c_gks2 = st.columns([1.5, 2])
+        with c_gks1:
+            rech_gk_txt = st.text_input("🔍 Rechercher une gardienne (Nom ou Pays) :", "", key="rech_gk_cage")
+        
+        with c_gks2:
+            if rech_gk_txt:
+                term = rech_gk_txt.strip().lower()
+                df_filtre = df_paires[
+                    df_paires["Nom_Joueuse"].astype(str).str.lower().str.contains(term) | 
+                    df_paires["Pays"].astype(str).str.lower().str.contains(term)
+                ]
+            else:
+                df_filtre = df_paires
 
-if err_cages:
-    st.error(f"⚠️ {err_cages}")
-elif df_cages.empty:
-    st.info("Données de secteurs de cage indisponibles. Lance 'importer_matchs.py' pour les générer.")
-else:
-    df_paires = df_cages[["Nom_Joueuse", "Pays"]].drop_duplicates().sort_values(by=["Pays", "Nom_Joueuse"])
-    
-    c_gks1, c_gks2 = st.columns([1.5, 2])
-    with c_gks1:
-        rech_gk_txt = st.text_input("🔍 Rechercher une gardienne (Nom ou Pays) :", "", key="rech_gk_cage")
-    
-    with c_gks2:
-        if rech_gk_txt:
-            term = rech_gk_txt.strip().lower()
-            df_filtre = df_paires[
-                df_paires["Nom_Joueuse"].astype(str).str.lower().str.contains(term) | 
-                df_paires["Pays"].astype(str).str.lower().str.contains(term)
+            options_gk = [f"{row['Nom_Joueuse']} ({row['Pays']})" for _, row in df_filtre.iterrows()]
+            
+            if not options_gk:
+                st.warning("Aucune gardienne trouvée pour cette recherche.")
+                gk_selectionnee_label = None
+            else:
+                gk_selectionnee_label = st.selectbox("Sélectionner la gardienne :", options_gk)
+
+        if gk_selectionnee_label:
+            nom_gk_choisi = gk_selectionnee_label.rsplit(" (", 1)[0]
+            pays_gk_choisi = gk_selectionnee_label.rsplit(" (", 1)[1].rstrip(")")
+
+            df_gk = df_cages[(df_cages["Nom_Joueuse"] == nom_gk_choisi) & (df_cages["Pays"] == pays_gk_choisi)]
+            
+            zones_cles = [
+                ("Haut_Gauche", "Haut_Centre", "Haut_Droit"),
+                ("Milieu_Gauche", "Milieu_Centre", "Milieu_Droit"),
+                ("Bas_Gauche", "Bas_Centre", "Bas_Droit")
             ]
-        else:
-            df_filtre = df_paires
+            
+            matrice_stats = []
+            tot_arrets = 0
+            tot_tirs = 0
 
-        options_gk = [f"{row['Nom_Joueuse']} ({row['Pays']})" for _, row in df_filtre.iterrows()]
-        
-        if not options_gk:
-            st.warning("Aucune gardienne trouvée pour cette recherche.")
-            gk_selectionnee_label = None
-        else:
-            gk_selectionnee_label = st.selectbox("Sélectionner la gardienne :", options_gk)
+            for ligne in zones_cles:
+                ligne_stats = []
+                for col_cle in ligne:
+                    arr_zone = 0
+                    tir_zone = 0
+                    for val in df_gk[col_cle]:
+                        m = re.match(r"^(\d+)/(\d+)", str(val).strip())
+                        if m:
+                            arr_zone += int(m.group(1))
+                            tir_zone += int(m.group(2))
+                    
+                    pct = (arr_zone / tir_zone * 100) if tir_zone > 0 else 0.0
+                    tot_arrets += arr_zone
+                    tot_tirs += tir_zone
+                    ligne_stats.append((arr_zone, tir_zone, pct))
+                matrice_stats.append(ligne_stats)
 
-    if gk_selectionnee_label:
-        nom_gk_choisi = gk_selectionnee_label.rsplit(" (", 1)[0]
-        pays_gk_choisi = gk_selectionnee_label.rsplit(" (", 1)[1].rstrip(")")
+            pct_global_gk = (tot_arrets / tot_tirs * 100) if tot_tirs > 0 else 0.0
 
-        df_gk = df_cages[(df_cages["Nom_Joueuse"] == nom_gk_choisi) & (df_cages["Pays"] == pays_gk_choisi)]
-        
-        zones_cles = [
-            ("Haut_Gauche", "Haut_Centre", "Haut_Droit"),
-            ("Milieu_Gauche", "Milieu_Centre", "Milieu_Droit"),
-            ("Bas_Gauche", "Bas_Centre", "Bas_Droit")
-        ]
-        
-        matrice_stats = []
-        tot_arrets = 0
-        tot_tirs = 0
+            st.markdown(f"#### **{nom_gk_choisi}** — {pays_gk_choisi}")
+            st.caption(f"Efficacité globale sur les tirs cadrés : **{tot_arrets}/{tot_tirs} ({pct_global_gk:.1f} %)**")
 
-        for ligne in zones_cles:
-            ligne_stats = []
-            for col_cle in ligne:
-                arr_zone = 0
-                tir_zone = 0
-                for val in df_gk[col_cle]:
-                    m = re.match(r"^(\d+)/(\d+)", str(val).strip())
-                    if m:
-                        arr_zone += int(m.group(1))
-                        tir_zone += int(m.group(2))
+            fig_cage, ax_c = plt.subplots(figsize=(6.5, 4.5), facecolor='#0b0f19')
+            ax_c.set_facecolor('#0b0f19')
+
+            for r_idx in range(3):
+                for c_idx in range(3):
+                    arr, tir, p = matrice_stats[r_idx][c_idx]
+                    
+                    if tir == 0:
+                        bg_color = '#1e293b'
+                    elif p >= 40:
+                        bg_color = '#065f46'
+                    elif p >= 25:
+                        bg_color = '#0e7490'
+                    elif p >= 15:
+                        bg_color = '#b45309'
+                    else:
+                        bg_color = '#991b1b'
+
+                    rect = plt.Rectangle((c_idx, 2 - r_idx), 1, 1, facecolor=bg_color, edgecolor='#f8fafc', linewidth=2, alpha=0.85)
+                    ax_c.add_patch(rect)
+
+                    ax_c.text(c_idx + 0.5, 2 - r_idx + 0.62, f"{arr}/{tir}", color='white', fontsize=12, fontweight='bold', ha='center', va='center')
+                    ax_c.text(c_idx + 0.5, 2 - r_idx + 0.38, f"{p:.1f} %", color='#fef08a' if p >= 30 else '#e2e8f0', fontsize=10.5, fontweight='bold', ha='center', va='center')
+
+            cadre_exterieur = plt.Rectangle((0, 0), 3, 3, fill=False, edgecolor='#ef4444', linewidth=6)
+            ax_c.add_patch(cadre_exterieur)
+
+            ax_c.set_xlim(-0.1, 3.1)
+            ax_c.set_ylim(-0.1, 3.1)
+            ax_c.axis('off')
+
+            c_view1, c_view2 = st.columns([1.3, 1])
+            with c_view1:
+                st.pyplot(fig_cage)
+            with c_view2:
+                st.markdown("##### 📌 Légende & Performance par Hauteur")
                 
-                pct = (arr_zone / tir_zone * 100) if tir_zone > 0 else 0.0
-                tot_arrets += arr_zone
-                tot_tirs += tir_zone
-                ligne_stats.append((arr_zone, tir_zone, pct))
-            matrice_stats.append(ligne_stats)
-
-        pct_global_gk = (tot_arrets / tot_tirs * 100) if tot_tirs > 0 else 0.0
-
-        st.markdown(f"#### **{nom_gk_choisi}** — {pays_gk_choisi}")
-        st.caption(f"Efficacité globale sur les tirs cadrés : **{tot_arrets}/{tot_tirs} ({pct_global_gk:.1f} %)**")
-
-        fig_cage, ax_c = plt.subplots(figsize=(6.5, 4.5), facecolor='#0b0f19')
-        ax_c.set_facecolor('#0b0f19')
-
-        for r_idx in range(3):
-            for c_idx in range(3):
-                arr, tir, p = matrice_stats[r_idx][c_idx]
+                haut_arr = sum(matrice_stats[0][i][0] for i in range(3))
+                haut_tir = sum(matrice_stats[0][i][1] for i in range(3))
                 
-                if tir == 0:
-                    bg_color = '#1e293b'
-                elif p >= 40:
-                    bg_color = '#065f46'
-                elif p >= 25:
-                    bg_color = '#0e7490'
-                elif p >= 15:
-                    bg_color = '#b45309'
-                else:
-                    bg_color = '#991b1b'
+                mil_arr = sum(matrice_stats[1][i][0] for i in range(3))
+                mil_tir = sum(matrice_stats[1][i][1] for i in range(3))
+                
+                bas_arr = sum(matrice_stats[2][i][0] for i in range(3))
+                bas_tir = sum(matrice_stats[2][i][1] for i in range(3))
 
-                rect = plt.Rectangle((c_idx, 2 - r_idx), 1, 1, facecolor=bg_color, edgecolor='#f8fafc', linewidth=2, alpha=0.85)
-                ax_c.add_patch(rect)
-
-                ax_c.text(c_idx + 0.5, 2 - r_idx + 0.62, f"{arr}/{tir}", color='white', fontsize=12, fontweight='bold', ha='center', va='center')
-                ax_c.text(c_idx + 0.5, 2 - r_idx + 0.38, f"{p:.1f} %", color='#fef08a' if p >= 30 else '#e2e8f0', fontsize=10.5, fontweight='bold', ha='center', va='center')
-
-        cadre_exterieur = plt.Rectangle((0, 0), 3, 3, fill=False, edgecolor='#ef4444', linewidth=6)
-        ax_c.add_patch(cadre_exterieur)
-
-        ax_c.set_xlim(-0.1, 3.1)
-        ax_c.set_ylim(-0.1, 3.1)
-        ax_c.axis('off')
-
-        c_view1, c_view2 = st.columns([1.3, 1])
-        with c_view1:
-            st.pyplot(fig_cage)
-        with c_view2:
-            st.markdown("##### 📌 Légende & Performance par Hauteur")
-            
-            haut_arr = sum(matrice_stats[0][i][0] for i in range(3))
-            haut_tir = sum(matrice_stats[0][i][1] for i in range(3))
-            
-            mil_arr = sum(matrice_stats[1][i][0] for i in range(3))
-            mil_tir = sum(matrice_stats[1][i][1] for i in range(3))
-            
-            bas_arr = sum(matrice_stats[2][i][0] for i in range(3))
-            bas_tir = sum(matrice_stats[2][i][1] for i in range(3))
-
-            st.metric("Secteur Haut (Lucarnes / Tête)", f"{haut_arr}/{haut_tir}", f"{(haut_arr/haut_tir*100) if haut_tir>0 else 0:.1f} %")
-            st.metric("Secteur Milieu (Hanches / Rebonds)", f"{mil_arr}/{mil_tir}", f"{(mil_arr/mil_tir*100) if mil_tir>0 else 0:.1f} %")
-            st.metric("Secteur Bas (Pieds)", f"{bas_arr}/{bas_tir}", f"{(bas_arr/bas_tir*100) if bas_tir>0 else 0:.1f} %")
+                st.metric("Secteur Haut (Lucarnes / Tête)", f"{haut_arr}/{haut_tir}", f"{(haut_arr/haut_tir*100) if haut_tir>0 else 0:.1f} %")
+                st.metric("Secteur Milieu (Hanches / Rebonds)", f"{mil_arr}/{mil_tir}", f"{(mil_arr/mil_tir*100) if mil_tir>0 else 0:.1f} %")
+                st.metric("Secteur Bas (Pieds)", f"{bas_arr}/{bas_tir}", f"{(bas_arr/bas_tir*100) if bas_tir>0 else 0:.1f} %")
