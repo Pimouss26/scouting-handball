@@ -95,11 +95,11 @@ config_fichiers = {
 info_comp = config_fichiers[comp_active]
 EXCEL_FILE = info_comp["excel"]
 
-# Repli automatique si data_u18.xlsx s'appelle encore data_handball.xlsx
+# Repli sur data_handball.xlsx si data_u18.xlsx n'a pas encore été renommé
 if comp_active == "U18" and not os.path.exists(EXCEL_FILE) and os.path.exists("data_handball.xlsx"):
     EXCEL_FILE = "data_handball.xlsx"
 
-# Bouton de retour au portail dans la barre latérale
+# Bouton de retour dans la barre latérale
 if st.sidebar.button("⬅️ Retour au Centre BBH", use_container_width=True):
     st.session_state["competition_active"] = None
     st.rerun()
@@ -359,7 +359,7 @@ else:
 st.subheader(f"🏆 Classement — {secteur_choisi if secteur_choisi != 'Tous' else tri_choisi} ({'Meilleur Ratio %' if 'Efficacité' in mode_tri else 'Plus grand nombre'})")
 st.dataframe(df_display.head(top_n), use_container_width=True)
 
-# --- COMPARATEUR MULTI-JOUEUSES ---
+# --- COMPARATEUR MULTI-JOUEUSES SYNCHRONISÉ ---
 st.markdown("---")
 st.subheader("⚔️ Outil de Comparaison Directe (jusqu'à 10 joueuses)")
 
@@ -428,17 +428,17 @@ if selected_comp:
     ang = [n / float(len(cat_comp)) * 2 * np.pi for n in range(len(cat_comp))]
     ang_p = ang + [ang[0]]
 
-    fig, ax = plt.subplots(figsize=(5.2, 5.2), subplot_kw=dict(polar=True), facecolor='#0b0f19')
+    fig, ax = plt.subplots(figsize=(6.0, 6.2), subplot_kw=dict(polar=True), facecolor='#0b0f19')
     ax.set_facecolor('#0b0f19')
     ax.set_theta_offset(np.pi / 2)
     ax.set_theta_direction(-1)
-    plt.xticks(ang, cat_comp, color='#f8fafc', size=9.5, fontweight='bold')
+    plt.xticks(ang, cat_comp, color='#f8fafc', size=10, fontweight='bold')
     plt.yticks([], [])
-    plt.ylim(0, 125)
+    plt.ylim(0, 130)
     ax.grid(color='#1e293b', linestyle='--', linewidth=0.8)
 
     va_p = [(v / max_val) * 70 + 18 for v in val_ref] + [(val_ref[0] / max_val) * 70 + 18]
-    ax.plot(ang_p, va_p, linewidth=1.8, linestyle='--', color='#94a3b8', label=f"{ref_choice}")
+    ax.plot(ang_p, va_p, linewidth=1.8, linestyle='--', color='#94a3b8', label=f"Réf. ({ref_choice})")
     ax.scatter(ang, va_p[:-1], color='#94a3b8', s=30, zorder=4)
 
     pal = ['#22c55e', '#38bdf8', '#f59e0b', '#ec4899', '#a855f7', '#14b8a6', '#f43f5e', '#84cc16', '#eab308', '#6366f1']
@@ -451,8 +451,30 @@ if selected_comp:
         raw_vals = [rj['Passes_D'], rj['Buts'], rj['Buts_7m'], rj['Tirs_Bloques'], rj['Implication']]
         v_plot = [(v / max_val) * 70 + 18 for v in raw_vals]
         col = pal[i % len(pal)]
-        ax.plot(ang_p, v_plot + [v_plot[0]], linewidth=2.0, color=col, label=f"{j_nom} ({rj['Pays']})")
-        ax.scatter(ang, v_plot, color=col, s=30, zorder=5)
+        
+        ax.plot(ang_p, v_plot + [v_plot[0]], linewidth=2.4, color=col, label=f"{j_nom} ({rj['Pays']})")
+        ax.scatter(ang, v_plot, color=col, s=45, zorder=5)
+
+        ang_shift = (i - (len(selected_comp) - 1) / 2.0) * 0.08
+        for a_base, val_num, rad_pos in zip(ang, raw_vals, v_plot):
+            a_pos = a_base + ang_shift
+            r_label = rad_pos + 7.5 + (i % 2) * 4.0
+            ax.text(
+                a_pos, r_label, f"{int(val_num)}",
+                color=col, fontsize=8.5, fontweight='bold', ha='center', va='center',
+                bbox=dict(boxstyle='round,pad=0.2', facecolor='#0b0f19', edgecolor=col, alpha=0.9, linewidth=1.0),
+                zorder=10
+            )
+
+    ax.legend(
+        loc='upper center',
+        bbox_to_anchor=(0.5, -0.10),
+        ncol=2,
+        facecolor='#151c2c',
+        edgecolor='#334155',
+        labelcolor='white',
+        fontsize=9
+    )
 
     col_chart, col_leg_tab = st.columns([1.1, 1.2])
     with col_chart:
