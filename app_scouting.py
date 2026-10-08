@@ -15,15 +15,44 @@ if "competition_active" not in st.session_state:
 
 # --- PAGE D'ACCUEIL / PORTAIL BBH ---
 if st.session_state["competition_active"] is None:
+    st.markdown("""
+        <style>
+        .card-bbh {
+            background: linear-gradient(135deg, rgba(225, 29, 72, 0.12), rgba(15, 23, 42, 0.75));
+            border: 1.5px solid #e11d48;
+            border-radius: 12px;
+            padding: 16px 20px;
+            margin-bottom: 12px;
+            text-align: center;
+        }
+        .card-bbh h4 {
+            color: #ffffff;
+            margin: 0;
+            font-size: 1.15rem;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+        .stButton>button {
+            border: 1px solid #e11d48 !important;
+            transition: all 0.2s ease-in-out;
+        }
+        .stButton>button:hover {
+            border-color: #f43f5e !important;
+            color: #f43f5e !important;
+            box-shadow: 0 0 10px rgba(225, 29, 72, 0.35);
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
     st.markdown("<h1 style='text-align: center; margin-bottom: 5px;'>⚫⚪ Centre de Base de Données BBH</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center; color: #94a3b8; font-size: 1.15rem; margin-bottom: 35px;'>Plateforme Centrale de Performance & Détection — Brest Bretagne Handball</p>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; color: #cbd5e1; font-size: 1.1rem; margin-bottom: 35px;'>Plateforme Centrale de Performance & Détection — <span style='color: #f43f5e; font-weight: 600;'>Brest Bretagne Handball</span></p>", unsafe_allow_html=True)
     st.markdown("---")
 
     col1, col2 = st.columns(2)
 
     with col1:
         st.markdown("### 🌍 Sélections Nationales Jeunes")
-        st.info("**Championnat du Monde U18**\n\nBase complète IHF : stats individuelles, tirs par secteur et cartographie 3x3 des gardiennes.")
+        st.markdown('<div class="card-bbh"><h4>Championnat du Monde U18</h4></div>', unsafe_allow_html=True)
         if st.button("Accéder à la base U18 ➔", key="btn_u18", use_container_width=True):
             st.session_state["competition_active"] = "U18"
             st.rerun()
@@ -31,14 +60,14 @@ if st.session_state["competition_active"] is None:
         st.markdown("<br>", unsafe_allow_html=True)
 
         st.markdown("### 🏆 Coupes d'Europe (EHF)")
-        st.info("**EHF Champions League**\n\nDonnées officielles EHF OMS : performance européenne, temps de jeu et efficacité au tir.")
+        st.markdown('<div class="card-bbh"><h4>EHF Champions League</h4></div>', unsafe_allow_html=True)
         if st.button("Accéder à l'EHF Champions League ➔", key="btn_cl", use_container_width=True):
             st.session_state["competition_active"] = "EHF CL"
             st.rerun()
 
     with col2:
         st.markdown("### 🇫🇷 Championnat de France")
-        st.info("**Ligue Butagaz Énergie (LBE)**\n\nBase officielle FFHB : statistiques de match régulières, arrêts gardiennes et sanctions.")
+        st.markdown('<div class="card-bbh"><h4>Ligue Butagaz Énergie (LBE)</h4></div>', unsafe_allow_html=True)
         if st.button("Accéder à la base LBE ➔", key="btn_lbe", use_container_width=True):
             st.session_state["competition_active"] = "LBE"
             st.rerun()
@@ -46,7 +75,7 @@ if st.session_state["competition_active"] is None:
         st.markdown("<br>", unsafe_allow_html=True)
 
         st.markdown("### 🇪🇺 European League")
-        st.info("**EHF European League**\n\nRapports EHF OMS : suivi de la seconde coupe d'Europe et profils émergents.")
+        st.markdown('<div class="card-bbh"><h4>EHF European League</h4></div>', unsafe_allow_html=True)
         if st.button("Accéder à l'EHF European League ➔", key="btn_el", use_container_width=True):
             st.session_state["competition_active"] = "EHF EL"
             st.rerun()
@@ -66,11 +95,11 @@ config_fichiers = {
 info_comp = config_fichiers[comp_active]
 EXCEL_FILE = info_comp["excel"]
 
-# Si le fichier data_u18.xlsx n'a pas encore été renommé, repli sur data_handball.xlsx
+# Repli sur data_handball.xlsx si data_u18.xlsx n'a pas encore été renommé
 if comp_active == "U18" and not os.path.exists(EXCEL_FILE) and os.path.exists("data_handball.xlsx"):
     EXCEL_FILE = "data_handball.xlsx"
 
-# Bouton de retour dans la barre latérale
+# Bouton de retour au portail dans la barre latérale
 if st.sidebar.button("⬅️ Retour au Centre BBH", use_container_width=True):
     st.session_state["competition_active"] = None
     st.rerun()
@@ -227,7 +256,6 @@ label_equipe = "Équipe / Club" if comp_active == "LBE" else "Pays / Sélections
 all_pays = sorted([p for p in df["Pays"].unique() if str(p) not in ["0", "Inconnu", "0.0"]])
 selected_pays = st.sidebar.multiselect(label_equipe, all_pays, default=[])
 
-# Filtre par Année de naissance (affiché si disponible)
 annees_dispos = sorted([int(a) for a in df["Annee_Naissance"].dropna().unique() if a > 1980])
 if annees_dispos:
     selected_annees = st.sidebar.multiselect("Année(s) de naissance", annees_dispos, default=[])
@@ -600,28 +628,28 @@ if info_comp["has_3x3"]:
                     ax_c.text(c_idx + 0.5, 2 - r_idx + 0.62, f"{arr}/{tir}", color='white', fontsize=12, fontweight='bold', ha='center', va='center')
                     ax_c.text(c_idx + 0.5, 2 - r_idx + 0.38, f"{p:.1f} %", color='#fef08a' if p >= 30 else '#e2e8f0', fontsize=10.5, fontweight='bold', ha='center', va='center')
 
-            cadre_exterieur = plt.Rectangle((0, 0), 3, 3, fill=False, edgecolor='#ef4444', linewidth=6)
-            ax_c.add_patch(cadre_exterieur)
+        cadre_exterieur = plt.Rectangle((0, 0), 3, 3, fill=False, edgecolor='#ef4444', linewidth=6)
+        ax_c.add_patch(cadre_exterieur)
 
-            ax_c.set_xlim(-0.1, 3.1)
-            ax_c.set_ylim(-0.1, 3.1)
-            ax_c.axis('off')
+        ax_c.set_xlim(-0.1, 3.1)
+        ax_c.set_ylim(-0.1, 3.1)
+        ax_c.axis('off')
 
-            c_view1, c_view2 = st.columns([1.3, 1])
-            with c_view1:
-                st.pyplot(fig_cage)
-            with c_view2:
-                st.markdown("##### 📌 Légende & Performance par Hauteur")
-                
-                haut_arr = sum(matrice_stats[0][i][0] for i in range(3))
-                haut_tir = sum(matrice_stats[0][i][1] for i in range(3))
-                
-                mil_arr = sum(matrice_stats[1][i][0] for i in range(3))
-                mil_tir = sum(matrice_stats[1][i][1] for i in range(3))
-                
-                bas_arr = sum(matrice_stats[2][i][0] for i in range(3))
-                bas_tir = sum(matrice_stats[2][i][1] for i in range(3))
+        c_view1, c_view2 = st.columns([1.3, 1])
+        with c_view1:
+            st.pyplot(fig_cage)
+        with c_view2:
+            st.markdown("##### 📌 Légende & Performance par Hauteur")
+            
+            haut_arr = sum(matrice_stats[0][i][0] for i in range(3))
+            haut_tir = sum(matrice_stats[0][i][1] for i in range(3))
+            
+            mil_arr = sum(matrice_stats[1][i][0] for i in range(3))
+            mil_tir = sum(matrice_stats[1][i][1] for i in range(3))
+            
+            bas_arr = sum(matrice_stats[2][i][0] for i in range(3))
+            bas_tir = sum(matrice_stats[2][i][1] for i in range(3))
 
-                st.metric("Secteur Haut (Lucarnes / Tête)", f"{haut_arr}/{haut_tir}", f"{(haut_arr/haut_tir*100) if haut_tir>0 else 0:.1f} %")
-                st.metric("Secteur Milieu (Hanches / Rebonds)", f"{mil_arr}/{mil_tir}", f"{(mil_arr/mil_tir*100) if mil_tir>0 else 0:.1f} %")
-                st.metric("Secteur Bas (Pieds)", f"{bas_arr}/{bas_tir}", f"{(bas_arr/bas_tir*100) if bas_tir>0 else 0:.1f} %")
+            st.metric("Secteur Haut (Lucarnes / Tête)", f"{haut_arr}/{haut_tir}", f"{(haut_arr/haut_tir*100) if haut_tir>0 else 0:.1f} %")
+            st.metric("Secteur Milieu (Hanches / Rebonds)", f"{mil_arr}/{mil_tir}", f"{(mil_arr/mil_tir*100) if mil_tir>0 else 0:.1f} %")
+            st.metric("Secteur Bas (Pieds)", f"{bas_arr}/{bas_tir}", f"{(bas_arr/bas_tir*100) if bas_tir>0 else 0:.1f} %")
