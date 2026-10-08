@@ -95,7 +95,7 @@ config_fichiers = {
 info_comp = config_fichiers[comp_active]
 EXCEL_FILE = info_comp["excel"]
 
-# Repli sur data_handball.xlsx si data_u18.xlsx n'a pas encore été renommé
+# Repli automatique si data_u18.xlsx s'appelle encore data_handball.xlsx
 if comp_active == "U18" and not os.path.exists(EXCEL_FILE) and os.path.exists("data_handball.xlsx"):
     EXCEL_FILE = "data_handball.xlsx"
 
