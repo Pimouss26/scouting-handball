@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
-st.set_page_config(page_title="Hub Scouting Handball U18", page_icon="🤾‍♀️️", layout="wide")
+st.set_page_config(page_title="Hub Scouting Handball U18", page_icon="🤾‍♀️", layout="wide")
 
 EXCEL_FILE = "data_handball.xlsx"
 
@@ -132,6 +132,15 @@ def load_data():
     df_grouped["Impl_PM"] = (df_grouped["Implication"] / df_grouped["Matchs_Joues"]).round(1)
     df_grouped["Arrets_PM"] = (df_grouped["Arrets_Totaux"] / df_grouped["Matchs_Joues"]).round(1)
 
+    # Extraction de l'année de naissance depuis la date de naissance (DOB)
+    def extraire_annee(val_dob):
+        s = str(val_dob).strip()
+        if len(s) >= 4 and s[-4:].isdigit():
+            return int(s[-4:])
+        return None
+
+    df_grouped["Annee_Naissance"] = df_grouped["DOB"].apply(extraire_annee)
+
     return df_raw, df_grouped
 
 df_raw, df = load_data()
@@ -146,6 +155,11 @@ if df.empty:
 st.sidebar.header("🎯 Filtres de Recherche")
 all_pays = sorted([p for p in df["Pays"].unique() if str(p) not in ["0", "Inconnu", "0.0"]])
 selected_pays = st.sidebar.multiselect("Pays / Sélections", all_pays, default=[])
+
+# Nouveau filtre par année de naissance (multi-sélection)
+annees_dispos = sorted([int(a) for a in df["Annee_Naissance"].dropna().unique() if a > 1990])
+selected_annees = st.sidebar.multiselect("Année(s) de naissance", annees_dispos, default=[])
+
 poule_filter = st.sidebar.selectbox("Tableau", ["Toutes", "Poule Haute (Main Round / Finales)", "Poule Basse (President's Cup)"])
 type_poste_sel = st.sidebar.selectbox("Catégorie de Poste", ["Tous", "CHAMP", "GARDIENNE"])
 
@@ -161,6 +175,8 @@ if poule_filter != "Toutes":
 
 if selected_pays:
     df_w = df_w[df_w["Pays"].isin(selected_pays)]
+if selected_annees:
+    df_w = df_w[df_w["Annee_Naissance"].isin(selected_annees)]
 if type_poste_sel != "Tous":
     df_w = df_w[df_w["Type_Poste"] == type_poste_sel]
 if selected_postes:
@@ -508,7 +524,6 @@ if err_cages:
 elif df_cages.empty:
     st.info("Données de secteurs de cage indisponibles. Lance 'importer_matchs.py' pour les générer.")
 else:
-    # Récupérer les couples uniques (Nom, Pays)
     df_paires = df_cages[["Nom_Joueuse", "Pays"]].drop_duplicates().sort_values(by=["Pays", "Nom_Joueuse"])
     
     c_gks1, c_gks2 = st.columns([1.5, 2])
@@ -525,7 +540,6 @@ else:
         else:
             df_filtre = df_paires
 
-        # Construire les options affichées : "Nom (Pays)"
         options_gk = [f"{row['Nom_Joueuse']} ({row['Pays']})" for _, row in df_filtre.iterrows()]
         
         if not options_gk:
@@ -535,7 +549,6 @@ else:
             gk_selectionnee_label = st.selectbox("Sélectionner la gardienne :", options_gk)
 
     if gk_selectionnee_label:
-        # Extraire le nom et le pays de la joueuse sélectionnée
         nom_gk_choisi = gk_selectionnee_label.rsplit(" (", 1)[0]
         pays_gk_choisi = gk_selectionnee_label.rsplit(" (", 1)[1].rstrip(")")
 
